@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The brand name lives here and nowhere else. Change it in this one line. -->
+    <string name="app_name">Payment Bridge</string>
+
+    <string name="channel_name">Payment listener</string>
+    <string name="notif_title">Listening for payments</string>
+    <string name="notif_text">Mobile money payments are sent to your dashboard as they arrive.</string>
+
+    <string name="label_url">Address from your dashboard</string>
+    <string name="hint_url">https://yourname.example.com/directpay/listener.php</string>
+    <string name="label_key">Key for this phone</string>
+    <string name="hint_key">Paste the key from the Direct Number page</string>
+    <string name="label_senders">Mobile money sender names</string>
+    <string name="help_senders">Only messages from these sender names are read. Messages from people, banks and everyone else are ignored and never leave this phone.</string>
+    <string name="label_activity">Recent activity</string>
+    <string name="activity_empty">Nothing yet. Send a small amount to your number to test.</string>
+
+    <string name="btn_save">Save and test</string>
+    <string name="btn_allow_sms">Allow reading payment messages</string>
+    <string name="btn_allow_battery">Keep running in the background</string>
+
+    <string name="testing">Checking the connection to your dashboard</string>
+    <string name="err_url">The address must start with https:// . Copy it from the Direct Number page in your dashboard.</string>
+    <string name="err_key">The key is 40 characters long. Copy it from the Direct Number page in your dashboard.</string>
+
+    <string name="state_setup">Not set up yet. In your dashboard open Settings, Payment Gateway, DirectNumber. Add this phone, then copy the address and the key into the boxes below.</string>
+    <string name="state_no_sms">Almost ready. Tap the button below so this app can see payment messages when they arrive.</string>
+    <string name="state_waiting">Saved. Waiting for the first contact with your dashboard.</string>
+    <string name="state_ok">Working. Last contact with your dashboard: %1$s. Keep this phone on charge and online.</string>
+    <string name="state_queue">%1$d payment message(s) waiting to be sent. They will go as soon as the internet is back.</string>
+
+    <string name="privacy">This app sees a text message only at the moment it arrives, and only passes on messages from the mobile money sender names listed above. It cannot open your inbox. A payment message is deleted from this app as soon as your dashboard confirms it has it.</string>
+</resources>

@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The release key lives outside the repository. Without it a release build is
+// simply left unsigned, so nobody can build a look-alike signed with our key.
+def keystoreFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystoreFile.exists()) {
+    keystoreFile.withInputStream { keystoreProps.load(it) }
+}
+
+android {
+    namespace 'com.ispledger.paymentapp'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.ispledger.paymentapp'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+        // Release builds talk https only. Debug builds may reach a test server over http.
+        manifestPlaceholders = [cleartext: 'false']
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            manifestPlaceholders = [cleartext: 'true']
+        }
+        release {
+            minifyEnabled false
+            if (keystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    lint {
+        abortOnError false
+    }
+}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#0F766E</color>
+    <color name="brand_dark">#115E59</color>
+    <color name="ink">#111827</color>
+    <color name="muted">#6B7280</color>
+    <color name="panel">#ECFDF5</color>
+
+    <style name="AppTheme" parent="android:Theme.Material.Light.DarkActionBar">
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorPrimaryDark">@color/brand_dark</item>
+        <item name="android:colorAccent">@color/brand</item>
+    </style>
+
+    <style name="Label">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+</resources>
