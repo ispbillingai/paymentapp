@@ -8,7 +8,7 @@ require dirname(__DIR__) . '/src/Parser.php';
 require dirname(__DIR__) . '/src/Gateway.php';
 date_default_timezone_set('UTC');
 
-$due = Db::rows("SELECT id FROM webhook_deliveries WHERE status = 'pending' AND next_attempt_at <= ? ORDER BY id LIMIT 100", [date('Y-m-d H:i:s')]);
+$due = Db::rows("SELECT id FROM webhook_deliveries WHERE status = 'pending' AND next_attempt_at <= ? ORDER BY next_attempt_at, id LIMIT 100", [date('Y-m-d H:i:s')]);
 $sent = 0;
 foreach ($due as $d) {
     if (Gateway::deliver((int) $d['id'])) {

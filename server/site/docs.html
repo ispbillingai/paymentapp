@@ -1,80 +1,258 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>API reference: ISP Billing Pay</title>
-<style>/*STYLE*/</style>
-</head>
-<body>
-<header class="top"><div class="wrap">
-  <a class="logo" href="/"><i></i>ISP Billing Pay</a>
-  <nav><a href="/">Home</a><a href="/docs">API</a><a href="/download">Get the app</a></nav>
-</div></header>
+<main id="main-content" class="docs-layout wrap">
+  <aside class="docs-sidebar" aria-label="Documentation contents">
+    <p class="eyebrow">Developer documentation</p>
+    <nav aria-label="On this page">
+      <a href="#overview">Overview</a><a href="#quickstart">Quickstart</a>
+      <a href="#authentication">Authentication</a><a href="#registration">Register a merchant</a>
+      <a href="#devices">Connect a listener</a><a href="#intents">Payment intents</a>
+      <a href="#webhooks">Receive webhooks</a><a href="#verification">Verify signatures</a>
+      <a href="#payments">Payments &amp; renewals</a><a href="#claims">Claim &amp; reconnect</a>
+      <a href="#errors">Errors &amp; troubleshooting</a><a href="#launch">Go-live checklist</a>
+    </nav>
+    <a class="button button-secondary" href="/support">Integration support <span aria-hidden="true">↗</span></a>
+  </aside>
+  <article class="docs-content">
+    <header id="overview" class="doc-section">
+      <span class="badge">API v1 · JSON over HTTPS</span>
+      <h1 class="page-heading">Build your payment<br>connection.</h1>
+      <p class="lead">Turn a mobile money confirmation into a payment event your billing system can act on.</p>
+      <p>Customers pay your receiving number. Your dedicated Android phone forwards the confirmation. ISP Billing Pay matches it to a payment intent and sends your server a signed webhook.</p>
+      <div class="callout"><strong>Your money. Your customer relationship.</strong><p>The gateway records and matches payment notifications. Money goes directly to your mobile money account. Your billing system manages packages, usernames, devices and internet access.</p></div>
+      <div class="code-panel"><div class="code-header"><span>API base URL</span><button class="copy-button" type="button" data-copy-target="base-url" aria-label="Copy API base URL">Copy</button></div><pre><code id="base-url">https://ispbillingpay.com/v1</code></pre></div>
+      <p class="small">Use your deployment's HTTPS origin if self-hosting. Examples contain illustrative account details and placeholder secrets. Send JSON objects with <code>Content-Type: application/json</code>; request bodies must be no larger than 64 KiB.</p>
+    </header>
+    <section id="quickstart" class="doc-section">
+      <span id="get-started" aria-hidden="true"></span>
+      <p class="eyebrow">Start here</p><h2>From setup to a paid intent</h2>
+      <ol class="steps-list">
+        <li><strong>Prepare your webhook.</strong> Implement the registration challenge and signed event handler on a public HTTPS endpoint.</li>
+        <li><strong>Register your merchant.</strong> Save the API key and webhook secret on your server.</li>
+        <li><strong>Connect the receiving phone.</strong> Create a listener, install the <a href="/download">Android app</a>, and verify its connection.</li>
+        <li><strong>Create an intent at checkout.</strong> Send the payer number, exact package amount and your account reference. Display the receiving number and registered name returned by the API.</li>
+        <li><strong>Handle the payment event.</strong> Verify the signature, persist the event, and activate the package once. Keep connection failures available for recovery.</li>
+      </ol>
+      <p>Built-in sender lists cover Uganda (<code>256</code>) and Ghana (<code>233</code>). Other networks can be configured with <code>provider: "other"</code> and their actual sender names, including in countries without a built-in list. Deployment country restrictions still apply; Kenya is excluded by the default configuration. Check <code>GET /v1/me</code> and <a href="#custom-network">validate your receipt format</a> before enabling automatic activation. Provider names identify message formats, not commercial partnerships.</p>
+    </section>
+    <section id="authentication" class="doc-section">
+      <h2>Authentication</h2>
+      <p>Merchant requests use a server-side bearer key. Phones use a separate device key. Never place either credential in a customer-facing page, checkout app or public repository.</p>
+      <div class="table-wrap"><table><thead><tr><th>Credential</th><th>Where it belongs</th><th>How it is used</th></tr></thead><tbody>
+        <tr><td>Merchant API key</td><td>Your billing server</td><td><code>Authorization: Bearer sk_live_…</code></td></tr>
+        <tr><td>Device key</td><td>One receiving phone</td><td><code>X-Device-Key: …</code></td></tr>
+        <tr><td>Webhook secret</td><td>Your event handler</td><td>Verify the event signature locally.</td></tr>
+      </tbody></table></div>
+      <p>API and device keys are returned when issued and stored as hashes by the gateway. Store their full values securely; they cannot be retrieved later. The webhook signing secret is separate and must remain available to both servers.</p>
+      <div class="endpoint"><span class="method">GET</span><code>/v1/me</code></div>
+      <p>Returns merchant details, configured currency, webhook URL, available <code>providers</code> and active <code>pay_to</code> accounts. The provider list includes <code>other</code> for custom sender setup; this option is not a guarantee that an untested receipt format will parse.</p>
+      <div class="code-panel"><div class="code-header"><span>Check your connection</span><button class="copy-button" type="button" data-copy-target="auth-code" aria-label="Copy authentication example">Copy</button></div><pre><code id="auth-code">curl https://ispbillingpay.com/v1/me \
+  -H "Authorization: Bearer $ISP_PAY_API_KEY"</code></pre></div>
+    </section>
+    <section id="registration" class="doc-section">
+      <p class="eyebrow">01 / Merchant setup</p><h2>Register your merchant</h2>
+      <div class="endpoint"><span class="method">POST</span><code>/v1/merchants/register</code></div>
+      <p>Initial registration does not require a payment-provider API key. A challenge verifies control of your webhook. Generate a random, single-use nonce on your server and store it as pending before sending this request.</p>
+      <div class="code-panel"><div class="code-header"><span>Registration request · application/json</span><button class="copy-button" type="button" data-copy-target="registration-code" aria-label="Copy registration payload">Copy</button></div><pre><code id="registration-code">{
+  "name": "Example Networks",
+  "country": "uganda",
+  "dial_code": "256",
+  "currency": "UGX",
+  "webhook_url": "https://billing.example.com/payments/webhook",
+  "nonce": "c70fca624ab244339767da0684020858"
+}</code></pre></div>
+      <p>Send <code>currency</code> as a three-letter code such as <code>UGX</code> or <code>GHS</code>. The example nonce is illustrative; generate a new one each time and keep it at most 64 characters. During registration, the gateway sends the following to your webhook with <code>X-Gateway-Event: challenge</code>:</p>
+      <div class="code-panel"><div class="code-header"><span>Incoming challenge</span></div><pre><code>{
+  "type": "challenge",
+  "challenge": "&lt;gateway-generated-random-value&gt;",
+  "nonce": "&lt;the-pending-nonce-you-sent&gt;"
+}</code></pre></div>
+      <p>Check that the nonce matches a registration your server initiated and has not already consumed. Only then echo the exact challenge with HTTP <code>200</code>:</p>
+      <div class="code-panel"><div class="code-header"><span>Challenge response</span></div><pre><code>{"challenge":"&lt;the-exact-received-challenge&gt;"}</code></pre></div>
+      <p>This setup challenge is not a signed payment event. Do not echo every challenge blindly. Successful initial registration returns HTTP <code>201</code>:</p>
+      <div class="code-panel"><div class="code-header"><span>Registration response</span></div><pre><code>{
+  "merchant_id": "mer_…",
+  "api_key": "sk_live_…",
+  "webhook_secret": "whsec_…",
+  "reissued": false
+}</code></pre></div>
+      <div class="callout"><strong>Replacing credentials</strong><p>Re-registering an existing webhook requires its merchant's current bearer key and a successful challenge. Without that key the API returns HTTP <code>409</code> with <code>merchant_exists</code>. Successful reissue returns HTTP <code>200</code> and <code>reissued: true</code>, revokes prior API keys and changes the webhook secret. Update both together. A challenge alone is not lost-key recovery; contact your deployment administrator if the key is unavailable.</p></div>
+    </section>
+    <section id="devices" class="doc-section">
+      <p class="eyebrow">02 / Payment source</p><h2>Connect a listener phone</h2>
+      <div class="endpoint"><span class="method">POST</span><code>/v1/devices</code></div>
+      <p>Choose a provider code returned by <code>GET /v1/me</code>. Enter the number and registered account name your customers will pay.</p>
+      <div class="code-panel"><div class="code-header"><span>Create device · application/json</span><button class="copy-button" type="button" data-copy-target="device-code" aria-label="Copy device payload">Copy</button></div><pre><code id="device-code">{
+  "provider": "mtn_ug",
+  "receiving_number": "+256770000001",
+  "receiving_name": "EXAMPLE NETWORKS",
+  "label": "Main collection phone"
+}</code></pre></div>
+      <p>The response contains <code>device</code> and a one-time <code>device_key</code>. Paste that key into the listener app and use the full message endpoint below. Keep the phone powered, online and able to receive SMS on the payment SIM. Grant the requested SMS and background-operation permissions.</p>
+      <div class="code-panel"><div class="code-header"><span>Listener app address</span><button class="copy-button" type="button" data-copy-target="listener-url" aria-label="Copy listener endpoint">Copy</button></div><pre><code id="listener-url">https://ispbillingpay.com/v1/device/messages</code></pre></div>
+      <h3 id="custom-network">Connect a network outside the built-in list</h3>
+      <p>Register with your local dial code and currency, then create the device with <code>provider: "other"</code>. Supply <code>extra_senders</code> as a comma-separated list of the sender names shown on genuine receiving-account messages. The following fictional example assumes a merchant registered with dial code <code>260</code> and currency <code>ZMW</code>:</p>
+      <div class="code-panel"><div class="code-header"><span>Custom network · illustrative device payload</span><button class="copy-button" type="button" data-copy-target="custom-device-code" aria-label="Copy custom network payload">Copy</button></div><pre><code id="custom-device-code">{
+  "provider": "other",
+  "receiving_number": "+260970000001",
+  "receiving_name": "EXAMPLE NETWORKS",
+  "label": "Local collection phone",
+  "extra_senders": "ExampleMoney"
+}</code></pre></div>
+      <p>Replace the example sender and account details. Add the same sender names to the Android app's allowed-sender list; creating the device does not update the phone automatically. Ordinary numeric senders are not accepted as network aliases.</p>
+      <div class="callout"><strong>Validate the format before automatic activation.</strong><p>Custom senders use the current English receipt parser. The merchant's currency code is recognized when it appears in the message; a sender name alone cannot teach the parser another language or receipt layout. Test actual credits, reversals, non-payment messages, transaction IDs, payer numbers and amounts end to end. If a format is unsupported, arrange parser support and review payments manually until validation succeeds.</p></div>
+      <div class="table-wrap"><table><thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead><tbody>
+        <tr><td><code>GET /v1/devices</code></td><td>List phones, last contact, app version and health.</td></tr>
+        <tr><td><code>POST /v1/devices/{id}/rotate</code></td><td>Issue a new device key; update the phone.</td></tr>
+        <tr><td><code>POST /v1/devices/{id}/revoke</code></td><td>Stop accepting this phone's credential.</td></tr>
+      </tbody></table></div>
+      <h3>Heartbeats and health</h3>
+      <p>The app calls <code>POST /v1/device/messages</code> with <code>X-Device-Key</code>. With no message text, the request updates last contact and returns <code>{"ok":true,"result":"pong"}</code>.</p>
+      <div class="code-panel"><div class="code-header"><span>Heartbeat payload</span><button class="copy-button" type="button" data-copy-target="heartbeat-code" aria-label="Copy heartbeat payload">Copy</button></div><pre><code id="heartbeat-code">{"ping":1,"version":"1.0"}</code></pre></div>
+      <p>Message submissions carry <code>from</code>, <code>text</code>, <code>sentStamp</code> (Unix milliseconds) and <code>version</code>. Results are <code>recorded</code>, <code>duplicate</code>, <code>ignored</code> or <code>reversal</code>. HTTP <code>200</code> means the submission was handled, not that a customer was connected.</p>
+      <p>Health is <code>never</code> until first contact, <code>online</code> after contact within 30 minutes, <code>quiet</code> after that, or <code>revoked</code>. This is a contact indicator, not a guarantee that every payment SMS arrived. Messages already captured while offline remain queued for upload.</p>
+    </section>
+    <section id="intents" class="doc-section">
+      <p class="eyebrow">03 / Checkout</p><h2>Create a payment intent</h2>
+      <div class="endpoint"><span class="method">POST</span><code>/v1/intents</code></div>
+      <p>Create an intent from your server after the customer chooses a package. It connects a payer number and amount to an account reference in your billing system.</p>
+      <div class="code-panel"><div class="code-header"><span>Create intent · application/json</span><button class="copy-button" type="button" data-copy-target="intent-code" aria-label="Copy intent payload">Copy</button></div><pre><code id="intent-code">{
+  "amount": 1000,
+  "payer_phone": "+256770000002",
+  "payer_name": "Alex",
+  "reference": "hotspot-user-1042",
+  "metadata": {"package_id":"daily-1000"}
+}</code></pre></div>
+      <div class="table-wrap"><table><thead><tr><th>Field</th><th>What to send</th></tr></thead><tbody>
+        <tr><td><code>amount</code> · required</td><td>A positive amount in major currency units, with at most two decimal places. <code>1000</code> means UGX 1,000 for a UGX merchant.</td></tr>
+        <tr><td><code>payer_phone</code> · required</td><td>The full number sending the money, normalized using the merchant dial code.</td></tr>
+        <tr><td><code>reference</code> · required</td><td>Your stable customer or account identifier, up to 100 UTF-8 bytes. Keep MAC addresses separate.</td></tr>
+        <tr><td><code>payer_name</code> · optional</td><td>A payer name used as an additional consistency check, up to 100 UTF-8 bytes.</td></tr>
+        <tr><td><code>metadata</code> · optional</td><td>Package or order details returned with the intent, up to 16 KiB of encoded JSON. Avoid secrets and unnecessary personal data.</td></tr>
+      </tbody></table></div>
+      <p><strong>Currency comes from merchant registration.</strong> There is no per-intent currency override. Intents stay open for 24 hours. The response contains <code>intent</code> and <code>pay_to</code>, an array of receiving numbers, registered names and provider labels. Display these at checkout with a copy button for the receiving number.</p>
+      <p>Use <code>reference</code> for the stable account and the returned <code>intent.id</code> for this purchase. Repeating the same still-open reference, number and amount returns the existing intent. This is limited reuse of a waiting intent, not general request idempotency. Save the ID and read it on reload. A qualifying unmatched payment received within the previous 24 hours can be linked at intent creation; always inspect the returned status.</p>
+      <div class="endpoint"><span class="method">GET</span><code>/v1/intents/{id}</code></div>
+      <p>Returns <code>{"intent":{…}}</code> with status <code>waiting</code>, <code>paid</code> or <code>expired</code>. A paid intent includes <code>payment</code>. Use this server-side lookup to reconcile a delayed webhook.</p>
+      <div class="callout"><strong>The matching rule</strong><p>Automatic matching requires the same merchant, payer number, amount and currency. Different references competing for the same payment are held for review. Amount alone never identifies the customer. A paid intent does not prove a successful router login; track activation separately.</p></div>
+    </section>
+    <section id="webhooks" class="doc-section">
+      <p class="eyebrow">04 / Payment events</p><h2>Receive webhooks</h2>
+      <p>Each event is stored before delivery. Verify the signature, durably record the ID and payload, then return a <code>2xx</code> status. Run activation from your queue so a slow router does not hold the webhook connection open.</p>
+      <div class="table-wrap"><table><thead><tr><th>Event</th><th>Payload</th><th>Your next step</th></tr></thead><tbody>
+        <tr><td><code>payment.matched</code></td><td><code>data.intent</code>, including its payment</td><td>Validate the account and package; schedule activation once.</td></tr>
+        <tr><td><code>payment.unmatched</code></td><td><code>data.payment</code> and <code>data.known_references</code></td><td>Show the unassociated payment or apply your renewal policy.</td></tr>
+        <tr><td><code>payment.reversed</code></td><td><code>data.payment</code> with <code>reversed: true</code></td><td>Reconcile the original credit under your reversal policy.</td></tr>
+      </tbody></table></div>
+      <div class="code-panel"><div class="code-header"><span>Event envelope · illustrative excerpt</span></div><pre><code>{
+  "id": "evt_…",
+  "type": "payment.matched",
+  "created": 1789900000,
+  "data": {
+    "intent": {
+      "id": "pi_…", "status": "paid",
+      "reference": "hotspot-user-1042",
+      "amount": 1000, "currency": "UGX",
+      "payment": {"id":"pay_…","reversed":false}
+    }
+  }
+}</code></pre></div>
+      <h3>Retries are part of the integration</h3>
+      <p>Timeouts and non-<code>2xx</code> responses queue retries after 1 minute, 5 minutes, 15 minutes, 1 hour, 4 hours, and then three daily intervals. The deployment must run <code>server/bin/deliver-webhooks.php</code> every minute for scheduled retries to execute. Requests time out after 10 seconds.</p>
+      <p>Events can arrive more than once or out of order. Deduplicate by <code>event.id</code> and make the package-credit operation unique by payment ID too. A reversal is a separate event about an existing payment; do not discard it as a duplicate credit. Reconcile delivery failures through the payment and intent APIs.</p>
+      <p>If a recognized reversal arrives before its original receipt, the gateway reserves that transaction identity with <code>reversed: true</code>. When the credit arrives, it fills the receipt details and emits <code>payment.reversed</code>; it never creates a paid intent. A reversal without a readable transaction ID still requires manual reconciliation.</p>
+    </section>
+    <section id="verification" class="doc-section">
+      <h2>Verify the signature</h2>
+      <p>Read <code>X-Gateway-Signature: t=…,v1=…</code>. Compute HMAC SHA-256 of the timestamp, a literal dot and the <strong>unchanged raw request body</strong>, using the entire <code>whsec_…</code> secret as the key.</p>
+      <p>This helper verifies signed payment events. Handle registration challenges separately using the pending nonce; add your transactional event-storage and queue handler after verification.</p>
+      <div class="code-panel"><div class="code-header"><span>PHP · event verification</span><button class="copy-button" type="button" data-copy-target="signature-code" aria-label="Copy PHP signature verifier">Copy</button></div><pre><code id="signature-code">function verifyGatewayEvent(string $rawBody, string $header,
+    string $secret): array
+{
+    if ($secret === '' || !preg_match(
+        '/^t=([0-9]{1,12}),v1=([a-f0-9]{64})$/D', $header, $parts
+    )) {
+        throw new RuntimeException('Invalid signature header');
+    }
 
-<section class="doc"><div class="wrap">
-  <h1>API reference</h1>
-  <p class="lead">Everything is JSON over https at <code>https://ispbillingpay.com/v1</code>. Errors look like <code>{"error": {"code": "...", "message": "..."}}</code>. The message is written to be shown to a person.</p>
+    $timestamp = (int) $parts[1];
+    $expected = hash_hmac('sha256', $parts[1] . '.' . $rawBody, $secret);
+    if (abs(time() - $timestamp) &gt; 300 ||
+        !hash_equals($expected, $parts[2])) {
+        throw new RuntimeException('Signature verification failed');
+    }
 
-  <h2>Authentication</h2>
-  <p>Send your secret key as <code>Authorization: Bearer sk_live_...</code> on every merchant request. Keys are shown once when they are created and stored only as a hash, so keep yours safe. Listener phones use their own key in the <code>X-Device-Key</code> header and can do one thing only: report a message.</p>
+    $event = json_decode($rawBody, true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($event) || empty($event['id']) || empty($event['type'])) {
+        throw new RuntimeException('Invalid event');
+    }
+    return $event;
+}
 
-  <h2>Joining</h2>
-  <h3><span class="tag">POST</span>/v1/merchants/register</h3>
-  <p>Open to anyone, proven by a challenge. Send <code>name</code>, <code>country</code>, <code>dial_code</code>, <code>currency</code>, <code>webhook_url</code> and a <code>nonce</code> of your choosing. Before replying, we POST <code>{"type": "challenge", "challenge": "...", "nonce": "..."}</code> to your webhook address. Answer with <code>{"challenge": "..."}</code> and status 200, and only if the nonce is the one you just sent. The reply then carries your <code>api_key</code> and <code>webhook_secret</code>.</p>
-  <p>Registering an address that is already known, and passing its challenge again, replaces its keys. That is how lost keys are recovered.</p>
+$event = verifyGatewayEvent(
+    file_get_contents('php://input'),
+    $_SERVER['HTTP_X_GATEWAY_SIGNATURE'] ?? '',
+    getenv('ISP_PAY_WEBHOOK_SECRET') ?: ''
+);
 
-  <h2>Payment intents</h2>
-  <p>An intent says: I expect this amount, from this number, for this reference of mine. It stays matchable for 24 hours.</p>
-  <h3><span class="tag">POST</span>/v1/intents</h3>
-  <table>
-    <tr><th>Field</th><th>Meaning</th></tr>
-    <tr><td><code>amount</code></td><td>The exact amount you expect, in your currency.</td></tr>
-    <tr><td><code>payer_phone</code></td><td>The number the money will be sent from, in any common format. Only its last digits are compared.</td></tr>
-    <tr><td><code>payer_name</code></td><td>One name of the payer. Used to confirm, never to decide on its own.</td></tr>
-    <tr><td><code>reference</code></td><td>Your own identifier for who this is for, such as a customer username. Required.</td></tr>
-    <tr><td><code>metadata</code></td><td>Anything you want handed back to you.</td></tr>
-  </table>
-  <p>The reply holds the <code>intent</code> and <code>pay_to</code>, the numbers your customer should send money to. Sending the same request again returns the same intent. If the money had already arrived before you asked, the intent comes back already <code>paid</code>.</p>
-  <h3><span class="tag">GET</span>/v1/intents/{id}</h3>
-  <p>The intent and, once paid, its payment. Use it as a fallback if a webhook has not reached you.</p>
-  <h3><span class="tag">POST</span>/v1/intents/{id}/claim</h3>
-  <p>For a customer who paid but was not matched. Send <code>transaction_id</code> from their own confirmation message and, if you can, their <code>payer_ip</code> so attempts can be limited. The payment must exist, equal the intent's amount, and come from the intent's number. Where the network sent no number, the name must match instead. Claiming twice returns the same result.</p>
-
-  <h2>Payments</h2>
-  <h3><span class="tag">GET</span>/v1/payments?status=unmatched</h3>
-  <p>Payments that reached your number, newest first. Unmatched ones carry <code>hold_reason</code> and <code>known_references</code>, the references this payer has paid for before.</p>
-  <h3><span class="tag">POST</span>/v1/payments/{id}/assign</h3>
-  <p>Take an unmatched payment for one of your references, either because a person decided or because you recognised a renewal. It succeeds once. A second attempt for a different reference is refused with <code>already_matched</code>.</p>
-  <table>
-    <tr><th>hold_reason</th><th>Meaning</th></tr>
-    <tr><td><code>no_waiting_intent</code></td><td>Nobody was waiting to pay from this number.</td></tr>
-    <tr><td><code>known_payer_no_intent</code></td><td>The payer is known to you but no intent was open. Usually a renewal.</td></tr>
-    <tr><td><code>no_number</code></td><td>The network left the payer number out of its message.</td></tr>
-    <tr><td><code>number_held_by_another_reference</code></td><td>The number belongs to a different reference and the name did not match. A person should decide.</td></tr>
-    <tr><td><code>unread</code></td><td>The message looked like a payment but could not be read with certainty. It is kept in full and never guessed at.</td></tr>
-  </table>
-
-  <h2>Listener phones</h2>
-  <h3><span class="tag">GET</span>/v1/devices &nbsp; <span class="tag">POST</span>/v1/devices</h3>
-  <p>Create one with <code>provider</code>, <code>receiving_number</code>, <code>receiving_name</code> and an optional <code>label</code>. The reply carries the <code>device_key</code> once. <code>GET /v1/me</code> lists the providers available in your country.</p>
-  <h3><span class="tag">POST</span>/v1/devices/{id}/rotate &nbsp; <span class="tag">POST</span>/v1/devices/{id}/revoke</h3>
-  <p>Replace a phone's key, or stop a lost phone from reporting.</p>
-
-  <h2>Webhooks</h2>
-  <p>We POST JSON to your webhook address. Every event has an <code>id</code>. An event can arrive more than once, so handle each id once. Answer with any 2xx status quickly and do slow work afterwards. If you do not answer, we retry for about three days, at growing intervals.</p>
-  <table>
-    <tr><th>type</th><th>When</th></tr>
-    <tr><td><code>payment.matched</code></td><td>A payment found its intent. <code>data.intent</code> holds the intent with its payment.</td></tr>
-    <tr><td><code>payment.unmatched</code></td><td>Money arrived that could not be matched safely. <code>data.payment</code> and <code>data.known_references</code>.</td></tr>
-    <tr><td><code>payment.reversed</code></td><td>The network reversed a payment you were told about earlier.</td></tr>
-  </table>
-  <h3>Checking the signature</h3>
-  <p>Each request carries <code>X-Gateway-Signature: t=1758400000,v1=...</code>. Compute an HMAC SHA-256 of the timestamp, a dot, and the raw request body, using your webhook secret, and compare it to <code>v1</code> in constant time. Refuse anything more than five minutes old.</p>
-<pre><code>$expected = hash_hmac('sha256', $t . '.' . $rawBody, $webhookSecret);
-$ok = hash_equals($expected, $v1) &amp;&amp; abs(time() - $t) &lt;= 300;</code></pre>
-</div></section>
-
-<footer><div class="wrap">ISP Billing Pay. Payments go straight to the merchant's own number. We never hold customer money.</div></footer>
-</body>
-</html>
+// Persist event.id with a UNIQUE constraint and enqueue processing
+// in the same database transaction. A duplicate event is a no-op.
+// Return 2xx only after that transaction commits.</code></pre></div>
+      <p>Reject failed verification without processing the event. Keep server clocks synchronized. The five-minute window applies to the delivery timestamp, not the event's creation time: a valid retry can carry an older event. A valid signature authenticates the gateway event; it does not turn an SMS into a network-signed settlement record.</p>
+    </section>
+    <section id="payments" class="doc-section">
+      <h2>Payments, review and renewals</h2>
+      <div class="endpoint"><span class="method">GET</span><code>/v1/payments?status=unmatched</code></div>
+      <p>Returns <code>{"payments":[…]}</code>, newest first, up to 200 records. Use <code>status=matched</code>, <code>status=unmatched</code> or omit the filter. Records include transaction ID, provider, amount, currency, payer details, reference, hold reason, reversal flag and original message. Restrict access to trusted staff and servers.</p>
+      <p>Unmatched payments include <code>known_references</code>: accounts previously linked to this payer number. These help your renewal logic but do not prove current account ownership. Choose the package using your account and price data.</p>
+      <div class="endpoint"><span class="method">POST</span><code>/v1/payments/{id}/assign</code></div>
+      <div class="code-panel"><div class="code-header"><span>Assign a reviewed payment</span><button class="copy-button" type="button" data-copy-target="assign-code" aria-label="Copy assignment payload">Copy</button></div><pre><code id="assign-code">{"reference":"hotspot-user-1042","rule":"manual"}</code></pre></div>
+      <p>Use <code>rule: "remembered"</code> for a renewal resolved by your server's policy. The response contains <code>payment</code>. Assignment records a reference; it does not activate a router, create a paid intent or emit a new <code>payment.matched</code> webhook. Persist and process the successful response once. Assignment to a different reference after matching is rejected.</p>
+      <div class="table-wrap"><table><thead><tr><th>Hold reason</th><th>What to check</th></tr></thead><tbody>
+        <tr><td><code>no_waiting_intent</code></td><td>No eligible checkout is waiting for this payer and amount.</td></tr>
+        <tr><td><code>known_payer_no_intent</code></td><td>A previous account is known; review a possible renewal.</td></tr>
+        <tr><td><code>no_number</code></td><td>The receipt has no usable payer number.</td></tr>
+        <tr><td><code>ambiguous_intents</code></td><td>Different references are waiting for this number, amount and currency. Review the intended account.</td></tr>
+        <tr><td><code>number_held_by_another_reference</code></td><td>The number is known against another reference and the name did not confirm the new one.</td></tr>
+        <tr><td><code>unread</code></td><td>A payment-like message could not be fully parsed. Review it before crediting.</td></tr>
+      </tbody></table></div>
+      <p>Different transaction IDs remain separate payments, even for identical amounts and times. Repeated submissions of the same merchant, provider, receiving account and transaction ID are deduplicated.</p>
+    </section>
+    <section id="claims" class="doc-section">
+      <h2>“I paid, but I'm not connected.”</h2>
+      <p>Keep recovery in your checkout. A MAC-address change is an account-access problem, not a new purchase. Start with the customer's existing intent and payment status.</p>
+      <div class="endpoint"><span class="method">POST</span><code>/v1/intents/{id}/claim</code></div>
+      <div class="code-panel"><div class="code-header"><span>Claim request · application/json</span><button class="copy-button" type="button" data-copy-target="claim-code" aria-label="Copy claim payload">Copy</button></div><pre><code id="claim-code">{
+  "transaction_id": "EXAMPLE123456",
+  "payer_ip": "203.0.113.20"
+}</code></pre></div>
+      <p>Your server sends the customer's transaction ID and the client IP it observed. The gateway must have received the payment within the preceding seven days. Claims check amount, currency, payer number, reversal status and existing association. An invented code never creates a payment. Ambiguous IDs and receipts without a payer number require review; a name alone is insufficient.</p>
+      <p>An unused receipt requires an unexpired waiting intent. A payment associated with another account cannot be moved by claiming it. If a payment is already linked to an intent for the same reference, a repeat claim returns that original intent after payer and amount checks, without another credit. A claim cannot replace a different payment already attached to the intent.</p>
+      <p>Payments assigned through <code>/payments/{id}/assign</code> have no linked intent. Recover those through your billing system's saved assignment and payment record; the claim endpoint does not create a replacement intent for them.</p>
+      <div class="callout"><strong>Reconnection belongs in your billing system</strong><p>Verify the customer, retrieve the paid username, check live sessions and reconnect the current device under your device policy. Preserve remaining package time or data. The gateway does not inspect MAC addresses, query routers or decide that an idle account belongs to a claimant.</p></div>
+      <p>Set <code>payer_ip</code> to a valid client IP observed by your trusted server, not a browser-supplied value. If omitted, the gateway uses the request's source IP, which can be your billing server's shared address. Five failed attempts in ten minutes trigger a limit for that merchant and IP. Apply customer/session limits too and avoid exposing account details in public errors. An unreachable router means session state is unknown, not that the account is unused.</p>
+    </section>
+    <section id="errors" class="doc-section">
+      <h2>Errors &amp; troubleshooting</h2>
+      <p>Handle the machine-readable <code>code</code> and show an appropriate message to the customer.</p>
+      <div class="code-panel"><div class="code-header"><span>Error response</span></div><pre><code>{"error":{"code":"bad_payer_phone","message":"Enter the full number the money will be sent from."}}</code></pre></div>
+      <div class="table-wrap"><table><thead><tr><th>HTTP</th><th>Typical codes</th><th>Action</th></tr></thead><tbody>
+        <tr><td>400</td><td><code>invalid_json</code>, <code>bad_request</code>, <code>bad_currency</code>, <code>https_required</code></td><td>Send a valid JSON object and correct the fields or endpoint configuration.</td></tr>
+        <tr><td>401</td><td><code>unauthorized</code>, <code>unknown_key</code></td><td>Check credential scope and revocation.</td></tr>
+        <tr><td>403</td><td><code>country_not_supported</code></td><td>Check deployment country availability.</td></tr>
+        <tr><td>404</td><td><code>not_found</code>, <code>intent_not_found</code></td><td>Check the route, merchant and saved object ID.</td></tr>
+        <tr><td>409</td><td><code>already_matched</code>, <code>already_used</code>, <code>merchant_exists</code></td><td>Check the existing association or supply the existing merchant's key for reissue.</td></tr>
+        <tr><td>413</td><td><code>request_too_large</code></td><td>Reduce the request body to 64 KiB or less.</td></tr>
+        <tr><td>422</td><td><code>challenge_failed</code>, <code>sender_required</code>, <code>no_device</code>, <code>amount_mismatch</code>, <code>payment_not_found</code></td><td>Follow the validation message. A custom network requires its actual sender name in <code>extra_senders</code>.</td></tr>
+        <tr><td>429</td><td><code>too_many_attempts</code></td><td>Back off before retrying; do not loop on claims.</td></tr>
+        <tr><td>500</td><td><code>server_error</code></td><td>Reconcile the saved intent or payment before retrying a write.</td></tr>
+      </tbody></table></div>
+      <h3>Find the stage that needs attention</h3>
+      <ul><li><strong>No receipt:</strong> check the SIM, listener connection, sender configuration and phone queue.</li><li><strong>Unassociated receipt:</strong> inspect number, amount, currency and hold reason; offer Claim payment or review.</li><li><strong>Paid but offline:</strong> inspect your activation queue, username, router response and session state.</li><li><strong>Missing webhook:</strong> inspect signature errors, endpoint responses and the retry worker; reconcile through the API.</li></ul>
+      <p>Use the <a href="/support">support guide</a> for integration assistance. Share object IDs and sanitized errors, never full keys or webhook secrets.</p>
+    </section>
+    <section id="launch" class="doc-section">
+      <p class="eyebrow">Before your first live customer</p><h2>Make the full journey reliable</h2>
+      <ul><li>Use HTTPS, isolate secrets and verify every payment webhook.</li><li>Validate real receipt formats for each configured provider and receiving account.</li><li>Check that repeated notifications cannot add another package.</li><li>Test phone and webhook outages, a reversal and a failed router login.</li><li>Keep unassociated payments, failed activations and claims visible to staff.</li><li>Agree privacy, reconciliation, support and refund responsibilities.</li></ul>
+      <a class="button button-primary" href="/security">Explore the security model <span aria-hidden="true">↗</span></a>
+    </section>
+  </article>
+</main>

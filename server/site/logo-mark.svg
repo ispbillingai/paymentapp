@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">ISP Billing Pay mark</title>
+  <desc id="desc">A geometric P shaped from a payment rail and a forward connection.</desc>
+  <path fill="#086653" d="M13 10h23c11.7 0 20 7.9 20 19S47.7 48 36 48h-8v8H13V10Zm15 13v12h8c3.8 0 5.8-2.2 5.8-6S39.8 23 36 23h-8Z"/>
+  <circle cx="16.5" cy="57" r="3.5" fill="#9aba70"/>
+</svg>

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     last_used_at DATETIME NULL,
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_key_hash (key_hash),
-    KEY idx_key_merchant (merchant_id)
+    KEY idx_key_merchant (merchant_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS devices (
@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS devices (
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_dev_public (public_id),
     UNIQUE KEY uq_dev_key (key_hash),
-    KEY idx_dev_merchant (merchant_id)
+    KEY idx_dev_merchant (merchant_id),
+    KEY idx_dev_active (merchant_id, status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS intents (
@@ -62,7 +63,8 @@ CREATE TABLE IF NOT EXISTS intents (
     created_at DATETIME NOT NULL,
     expires_at DATETIME NOT NULL,
     UNIQUE KEY uq_int_public (public_id),
-    KEY idx_int_match (merchant_id, payer_key, status, expires_at)
+    KEY idx_int_match (merchant_id, payer_key, status, amount, currency, expires_at),
+    KEY idx_int_reuse (merchant_id, reference, payer_key, status, amount, expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS payments (
@@ -97,8 +99,9 @@ CREATE TABLE IF NOT EXISTS payments (
     UNIQUE KEY uq_pay_public (public_id),
     UNIQUE KEY uq_pay_trx (merchant_id, provider, receiving_key, trx_id),
     KEY idx_pay_list (merchant_id, status, id),
-    KEY idx_pay_payer (merchant_id, payer_key),
-    KEY idx_pay_trxid (merchant_id, trx_id)
+    KEY idx_pay_feed (merchant_id, id),
+    KEY idx_pay_payer (merchant_id, payer_key, status, kind, reversed, amount, currency, received_at),
+    KEY idx_pay_trxid (merchant_id, trx_id, kind, received_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS payers (
@@ -108,7 +111,8 @@ CREATE TABLE IF NOT EXISTS payers (
     reference VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL DEFAULT '',
     last_seen DATETIME NOT NULL,
-    UNIQUE KEY uq_payer (merchant_id, payer_key, reference)
+    UNIQUE KEY uq_payer (merchant_id, payer_key, reference),
+    KEY idx_payer_recent (merchant_id, payer_key, last_seen)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS claims (
@@ -118,7 +122,7 @@ CREATE TABLE IF NOT EXISTS claims (
     trx_id VARCHAR(64) NOT NULL DEFAULT '',
     ok TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
-    KEY idx_claim_ip (merchant_id, ip, created_at)
+    KEY idx_claim_ip (merchant_id, ip, ok, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS webhook_deliveries (
@@ -133,7 +137,7 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
     next_attempt_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_wh_event (event_id),
-    KEY idx_wh_due (status, next_attempt_at)
+    KEY idx_wh_due (status, next_attempt_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS signups (

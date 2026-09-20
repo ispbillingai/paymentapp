@@ -1,0 +1,73 @@
+<main id="main-content">
+  <section class="wrap page-shell">
+    <header class="page-intro">
+      <span class="badge">Security &amp; trust</span>
+      <h1 class="page-heading">Trust is built into<br>the payment journey.</h1>
+      <p class="lead">Separate credentials. Explicit matching rules. Signed events. A clear path when a payment needs attention.</p>
+      <p class="prose">ISP Billing Pay connects mobile money confirmations to your billing system. Explore the controls in the current implementation, the boundaries of the listener model, and the responsibilities that stay with your business.</p>
+      <a class="button button-primary" href="/docs#verification">Verify your integration <span aria-hidden="true">↗</span></a>
+    </header>
+    <div class="feature-grid">
+      <article class="feature-card"><span class="icon" aria-hidden="true">↗</span><p class="eyebrow">Direct collection</p><h2>Money goes to you.</h2><p>Customers pay your mobile money number. The gateway records the notification; it does not receive, hold or move their funds.</p></article>
+      <article class="feature-card"><span class="icon" aria-hidden="true">⌘</span><p class="eyebrow">Separate access</p><h2>A key for each role.</h2><p>Your server uses a merchant key. Each listener has a separate key for submissions and heartbeats. Webhooks use a signing secret.</p></article>
+      <article class="feature-card"><span class="icon" aria-hidden="true">✓</span><p class="eyebrow">Account-aware matching</p><h2>More than an amount.</h2><p>Matching checks merchant, payer number, amount and currency. Ambiguous account references stay available for review.</p></article>
+    </div>
+  </section>
+  <section class="wrap docs-layout">
+    <aside class="docs-sidebar" aria-label="Security contents"><p class="eyebrow">Our security model</p><nav aria-label="On this page"><a href="#access">Credentials &amp; access</a><a href="#integrity">Payment integrity</a><a href="#listener">The listener boundary</a><a href="#privacy">Data &amp; privacy</a><a href="#operations">Operational safeguards</a><a href="#reporting">Report a concern</a></nav></aside>
+    <article class="docs-content">
+      <section id="access" class="doc-section">
+        <h2>Credentials with clear boundaries</h2>
+        <p>Merchant and device keys come from cryptographically secure random bytes and are stored as SHA-256 hashes on the gateway. Revoke or rotate a lost phone's key without replacing every listener's credentials.</p>
+        <p>Merchant endpoints scope payments, intents and devices to the authenticated merchant. Initial onboarding challenges the configured webhook. Reissuing existing merchant credentials requires its current API key and a successful challenge.</p>
+        <p>Payment events use HMAC SHA-256 over the delivery timestamp and raw body. Your server verifies the signature with a constant-time comparison, rejects stale signatures and records each event ID once. See the exact <a href="/docs#verification">verification example</a>.</p>
+        <p>Production webhook destinations use public HTTPS. Outbound delivery validates destination addresses, disables redirects and verifies TLS. Keep local-development exceptions disabled on live deployments.</p>
+      </section>
+      <section id="integrity" class="doc-section">
+        <h2>Protect the payment and its destination</h2>
+        <div class="table-wrap"><table><thead><tr><th>Situation</th><th>How it is handled</th></tr></thead><tbody>
+          <tr><td>A receipt is forwarded again</td><td>A unique merchant, provider, receiving-account and transaction-ID combination prevents a second payment record.</td></tr>
+          <tr><td>Two customers send the same amount</td><td>Different transaction IDs remain separate. Automatic matching requires the payer number.</td></tr>
+          <tr><td>Several accounts could receive a payment</td><td>Conflicting references are held for review instead of choosing the newest account.</td></tr>
+          <tr><td>A receipt cannot be fully read</td><td>It is preserved for review, without automatically creating a matched credit.</td></tr>
+          <tr><td>A payment is reversed</td><td>A recognized reversal blocks activation. If it arrives before the credit, its transaction identity is retained; the later credit stays reversed and produces a reversal event.</td></tr>
+          <tr><td>A webhook arrives again</td><td>It keeps its event ID. Your application deduplicates delivery and credits each payment once.</td></tr>
+        </tbody></table></div>
+        <p>Claims refer to payments already received and check payer, amount, currency and association. A code cannot create money, override a reversal or move a payment assigned to another reference. A name alone does not prove ownership.</p>
+        <p>Your account controls still matter. A typed number and public name are not independent identity verification. Apply additional verification to disputed claims, device recovery and conflicting account requests.</p>
+      </section>
+      <section id="listener" class="doc-section">
+        <p class="eyebrow">A deliberate trust boundary</p><h2>What a forwarded receipt proves</h2>
+        <p>The dedicated phone forwards messages from configured mobile money senders. The Android app filters senders before queueing a message; the server validates the sender and parses recognized payment details.</p>
+        <div class="callout"><strong>A listener submission is not a bank-signed receipt.</strong><p>A device key proves the caller holds that credential. It does not cryptographically prove network origin, final settlement or ownership of the receiving account. Sender filtering and parsing reduce mistakes; they do not make spoofing or a compromised phone impossible.</p></div>
+        <p>Use a dedicated, locked phone under your control. Restrict installations and physical access, protect the SIM, keep Android updated and rotate the key if the device may be compromised. Add only sender aliases validated against actual receipts.</p>
+        <p>Uganda and Ghana have built-in sender lists. Custom sender setup is available for other networks and countries allowed by the deployment, without payment-provider API keys. Adding a sender only permits its messages to be considered; it does not verify their origin or guarantee support for their language and layout. Validate real receipts and their extracted fields before enabling automatic activation.</p>
+        <p>Reconcile records with your receiving mobile money account. Set review thresholds appropriate to the service delivered. Automatic access is a business decision based on this notification channel and your controls, not a guarantee against every dispute.</p>
+      </section>
+      <section id="privacy" class="doc-section">
+        <h2>Keep payment data purposeful</h2>
+        <p>The Android manifest requests incoming SMS, internet, connectivity, notifications, boot restart and foreground/background-operation permissions. It does not request access to browse the existing SMS inbox, contacts, location, microphone or camera.</p>
+        <p>Messages outside the configured sender list are discarded by the app. Accepted messages queue locally while offline; the local body is deleted after server acknowledgement. Acknowledgement means the submission was handled, not that the customer was connected.</p>
+        <p>The gateway stores payment details and accepted payment messages for reconciliation. They can contain payer names, numbers and account balances. Device diagnostics include last contact and IP address. Treat these records as sensitive and restrict staff access.</p>
+        <p>The current implementation does not provide automatic retention expiry or application-level encryption of all stored payment data. Operators must set retention rules, secure databases and backups, configure appropriate encryption and provide their operation's privacy notice. Read the <a href="/privacy">data-handling overview</a>.</p>
+      </section>
+      <section id="operations" class="doc-section">
+        <h2>Reliable operations complete the system</h2>
+        <p>The phone queues captured messages during an internet outage. The gateway stores outgoing events and schedules retries. Delivery depends on a working SIM, phone, server and retry worker; these mechanisms do not promise instant or uninterrupted delivery.</p>
+        <div class="feature-grid">
+          <article class="feature-card"><h3>Gateway operator</h3><p>Maintain HTTPS, updates, restricted administration, protected secrets, backups, retry workers, monitoring and recovery procedures.</p></article>
+          <article class="feature-card"><h3>Merchant integration</h3><p>Verify events, protect accounts, credit payments once, reconcile receipts and handle reversals, refunds and customer support.</p></article>
+        </div>
+        <p>Track receipt, association and activation separately. A paid package can still fail at router login. After verifying the customer and session state, recover access using the paid username and remaining entitlement.</p>
+        <p>These controls are implementation features, not claims of independent certification, regulatory approval or payment-network endorsement. Validate your deployment and receiving-account permissions before launch.</p>
+      </section>
+      <section id="reporting" class="doc-section">
+        <p class="eyebrow">Work with us</p><h2>Report a security concern</h2>
+        <p>Email <a href="mailto:contact@ispbillingpay.com?subject=Security%20report">contact@ispbillingpay.com</a> or contact your deployment administrator. Include the affected route, time, sanitized event ID and reproduction steps. Do not include customer receipts or full credentials in your first message.</p>
+        <p>Revoke or rotate an exposed listener key immediately. If merchant credentials may be exposed, involve the gateway operator and reconcile recent assignments before resuming automated access.</p>
+        <a class="button button-primary" href="/support">Open the support guide <span aria-hidden="true">↗</span></a>
+        <a class="button button-secondary" href="/docs">Read the API documentation</a>
+      </section>
+    </article>
+  </section>
+</main>

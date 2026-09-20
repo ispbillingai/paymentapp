@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 426 80" role="img" aria-labelledby="title desc">
+  <title id="title">ISP Billing Pay</title>
+  <desc id="desc">ISP Billing Pay wordmark with its geometric payment connection symbol.</desc>
+  <g transform="translate(4 4)">
+    <rect width="72" height="72" rx="17" fill="#0f4037"/>
+    <path fill="#d8f58a" d="M18 15h21c10.4 0 17.7 7 17.7 16.8S49.4 48 39 48h-8v9H18V15Zm13 11v11h8c3.2 0 5-2 5-5.4S42.2 26 39 26h-8Z"/>
+    <circle cx="20.5" cy="59" r="3.5" fill="#fff"/>
+  </g>
+  <text x="94" y="49" fill="#132c29" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-1.5">ISP Billing</text>
+  <text x="266" y="49" fill="#086653" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="34" font-weight="500" letter-spacing="-1.5">Pay</text>
+  <text x="96" y="68" fill="#718079" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="10" font-weight="600" letter-spacing="2.3">DIRECT PAYMENT CONNECTION</text>
+</svg>

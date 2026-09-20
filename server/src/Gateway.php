@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/WebhookTarget.php';
+
 /**
  * The payment gateway.
  *
@@ -93,12 +95,16 @@ class Gateway
 
     public static function createDevice(array $m, array $in)
     {
+        foreach (['provider', 'receiving_number', 'receiving_name', 'label', 'extra_senders'] as $field) {
+            if (isset($in[$field]) && !is_string($in[$field])) {
+                return ['error' => ['code' => 'bad_request', 'message' => 'Device details must be text values.']];
+            }
+        }
         $provider = (string) ($in['provider'] ?? '');
         $number = preg_replace('/[^\d+]/', '', (string) ($in['receiving_number'] ?? ''));
         $name = trim((string) ($in['receiving_name'] ?? ''));
-        // Networks we already know are picked from a list. Anywhere else in the
-        // world the merchant names the sender their payment messages come from,
-        // so no country has to wait for us before it can start.
+        // A merchant can configure the exact sender name for another network.
+        // Its receipt format still has to pass the parser's existing checks.
         $extraSenders = trim((string) ($in['extra_senders'] ?? ''));
         if ($provider === 'other') {
             if ($extraSenders === '') {
@@ -169,18 +175,32 @@ class Gateway
 
     public static function createIntent(array $m, array $in)
     {
-        $amount = round((float) ($in['amount'] ?? 0), 2);
+        foreach (['payer_phone', 'payer_name', 'reference'] as $field) {
+            if (isset($in[$field]) && !is_string($in[$field])) {
+                return ['error' => ['code' => 'bad_request', 'message' => 'Payer details and reference must be text values.']];
+            }
+        }
+        $rawAmount = $in['amount'] ?? null;
+        $amount = is_scalar($rawAmount) && is_numeric($rawAmount) ? (float) $rawAmount : 0;
         $key = Parser::msisdnKey($in['payer_phone'] ?? '', Parser::msisdnDigitsFor($m['dial_code']));
         $name = trim(preg_replace('/\s+/', ' ', (string) ($in['payer_name'] ?? '')));
         $reference = trim((string) ($in['reference'] ?? ''));
-        if ($amount <= 0) {
-            return ['error' => ['code' => 'bad_amount', 'message' => 'The amount must be more than zero.']];
+        if (!is_finite($amount) || $amount <= 0 || $amount > 999999999999.99
+            || abs($amount - round($amount, 2)) > 0.000001) {
+            return ['error' => ['code' => 'bad_amount', 'message' => 'Use a positive amount with at most two decimal places.']];
         }
         if ($key === '') {
             return ['error' => ['code' => 'bad_payer_phone', 'message' => 'Enter the full number the money will be sent from.']];
         }
         if ($reference === '') {
             return ['error' => ['code' => 'reference_required', 'message' => 'A reference is required.']];
+        }
+        if (strlen($reference) > 100 || strlen($name) > 100) {
+            return ['error' => ['code' => 'invalid_length', 'message' => 'Reference and payer name must each be at most 100 bytes.']];
+        }
+        $metadata = json_encode($in['metadata'] ?? new stdClass());
+        if ($metadata === false || strlen($metadata) > 16384) {
+            return ['error' => ['code' => 'bad_metadata', 'message' => 'Metadata must be valid JSON no larger than 16 KB.']];
         }
         if (!self::payTo($m['id'])) {
             return ['error' => ['code' => 'no_device', 'message' => 'No listener phone is set up for this merchant yet.']];
@@ -202,7 +222,7 @@ class Gateway
             Db::run(
                 "INSERT INTO intents (public_id, merchant_id, amount, currency, payer_msisdn, payer_key, payer_name, reference, metadata, status, created_at, expires_at)
                  VALUES (?,?,?,?,?,?,?,?,?, 'waiting', ?, ?)",
-                [self::newId('pi'), (int) $m['id'], $amount, $m['currency'], $m['dial_code'] . $key, $key, substr($name, 0, 100), substr($reference, 0, 100), json_encode($in['metadata'] ?? new stdClass()), $now, date('Y-m-d H:i:s', time() + self::INTENT_HOURS * 3600)]
+                [self::newId('pi'), (int) $m['id'], $amount, $m['currency'], $m['dial_code'] . $key, $key, $name, $reference, $metadata, $now, date('Y-m-d H:i:s', time() + self::INTENT_HOURS * 3600)]
             );
             $intent = Db::row("SELECT * FROM intents WHERE id = ?", [Db::lastId()]);
         }
@@ -210,8 +230,8 @@ class Gateway
         // They may have paid before asking. Money already sitting unmatched
         // under this number, for this amount, is theirs.
         $early = Db::row(
-            "SELECT id FROM payments WHERE merchant_id = ? AND status = 'unmatched' AND kind = 'credit' AND reversed = 0 AND payer_key = ? AND amount = ? AND received_at > ? ORDER BY id DESC LIMIT 1",
-            [(int) $m['id'], $key, $amount, date('Y-m-d H:i:s', time() - self::INTENT_HOURS * 3600)]
+            "SELECT id FROM payments WHERE merchant_id = ? AND status = 'unmatched' AND kind = 'credit' AND reversed = 0 AND payer_key = ? AND amount = ? AND currency = ? AND received_at > ? ORDER BY id DESC LIMIT 1",
+            [(int) $m['id'], $key, $amount, $m['currency'], date('Y-m-d H:i:s', time() - self::INTENT_HOURS * 3600)]
         );
         if ($early) {
             self::matchPayment((int) $early['id']);
@@ -261,12 +281,17 @@ class Gateway
     /** Returns ignored, duplicate, recorded or reversal. Private messages are dropped, never stored. */
     public static function ingest(array $device, $sender, $body, $sentAt = null)
     {
+        if (!is_string($body) || strlen($body) > 16000 || !is_string($sender) || strlen($sender) > 100) {
+            return 'ignored';
+        }
         $extra = [];
         if (trim($device['extra_senders']) !== '') {
             $extra[$device['provider']] = array_filter(array_map('trim', explode(',', $device['extra_senders'])));
         }
-        $provider = Parser::providerForSender($sender, $device['dial_code'], $extra);
-        if ($provider === '') {
+        // "Other" accepts only this device's configured senders, including a
+        // sender which also appears in a built-in country list.
+        $provider = Parser::providerForSender($sender, $device['provider'] === 'other' ? '' : $device['dial_code'], $extra);
+        if ($provider === '' || $provider !== $device['provider']) {
             return 'ignored';
         }
         $p = Parser::parseMessage($provider, $body, (string) ($device['merchant_currency'] ?? ''));
@@ -280,13 +305,36 @@ class Gateway
             if ($p['trx_id'] === '') {
                 return 'ignored';
             }
-            $pay = Db::row("SELECT * FROM payments WHERE merchant_id = ? AND provider = ? AND receiving_key = ? AND trx_id = ?", [$mid, $provider, $rkey, $p['trx_id']]);
-            if (!$pay || (int) $pay['reversed'] === 1) {
-                return 'ignored';
+            $pdo = Db::pdo();
+            $pdo->beginTransaction();
+            try {
+                $pay = Db::row("SELECT * FROM payments WHERE merchant_id = ? AND provider = ? AND receiving_key = ? AND trx_id = ? FOR UPDATE", [$mid, $provider, $rkey, $p['trx_id']]);
+                if (!$pay) {
+                    // Reversals can reach the listener before the original
+                    // credit. Reserve that exact receipt identity so its later
+                    // arrival cannot activate a package. No amount is inferred.
+                    Db::run(
+                        "INSERT INTO payments (public_id, merchant_id, device_id, source, provider, receiving_key, trx_id, kind, currency, sender, raw_message, parser, sms_time, received_at, status, hold_reason, reversed, reversed_at)
+                         VALUES (?,?,?, 'direct_number', ?,?,?, 'reversal', ?,?,?,?,?,?, 'unmatched', 'reversal_before_receipt', 1, ?)",
+                        [self::newId('pay'), $mid, (int) $device['id'], $provider, $rkey, $p['trx_id'], (string) ($device['merchant_currency'] ?? ''),
+                            substr($sender, 0, 40), $body, $p['parser'], $sentAt ? date('Y-m-d H:i:s', $sentAt) : null, self::now(), self::now()]
+                    );
+                    $pdo->commit();
+                    return 'reversal';
+                }
+                if ((int) $pay['reversed'] === 1) {
+                    $pdo->rollBack();
+                    return 'ignored';
+                }
+                Db::run("UPDATE payments SET reversed = 1, reversed_at = ? WHERE id = ?", [self::now(), (int) $pay['id']]);
+                $pay['reversed'] = 1;
+                $deliveryId = self::queueEvent($mid, 'payment.reversed', ['payment' => self::paymentOut($pay, true)]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
             }
-            Db::run("UPDATE payments SET reversed = 1, reversed_at = ? WHERE id = ?", [self::now(), (int) $pay['id']]);
-            $pay['reversed'] = 1;
-            self::emit($mid, 'payment.reversed', ['payment' => self::paymentOut($pay, true)]);
+            self::deliver($deliveryId);
             return 'reversal';
         }
 
@@ -307,6 +355,13 @@ class Gateway
             );
         } catch (PDOException $e) {
             if ($e->getCode() === '23000') {
+                // A previous attempt may have committed the receipt and then
+                // failed while linking it. Resume safely on listener retry.
+                $existing = Db::row("SELECT id FROM payments WHERE merchant_id = ? AND provider = ? AND receiving_key = ? AND trx_id = ?", [$mid, $provider, $rkey, $trx]);
+                if ($existing) {
+                    if ($p['kind'] === 'credit') self::completeReversedReceipt((int) $existing['id'], $p, $device, $sender, $body, $sentAt);
+                    self::matchPayment((int) $existing['id']);
+                }
                 return 'duplicate'; // the phone re-sent something already delivered
             }
             throw $e;
@@ -320,6 +375,33 @@ class Gateway
             ]);
         }
         return 'recorded';
+    }
+
+    /** Fill an earlier reversal notice with its eventual credit, without matching it. */
+    private static function completeReversedReceipt($paymentId, array $parsed, array $device, $sender, $body, $sentAt)
+    {
+        $pdo = Db::pdo();
+        $pdo->beginTransaction();
+        try {
+            $pay = Db::row("SELECT * FROM payments WHERE id = ? FOR UPDATE", [$paymentId]);
+            if (!$pay || $pay['kind'] !== 'reversal' || (int) $pay['reversed'] !== 1) {
+                $pdo->rollBack();
+                return;
+            }
+            Db::run(
+                "UPDATE payments SET kind = 'credit', amount = ?, currency = ?, payer_msisdn = ?, payer_key = ?, payer_name = ?, sender = ?, raw_message = ?, parser = ?, sms_time = ?, hold_reason = 'reversed' WHERE id = ?",
+                [$parsed['amount'], $parsed['currency'], $parsed['payer_msisdn'], Parser::msisdnKey($parsed['payer_msisdn'], Parser::msisdnDigitsFor($device['dial_code'])),
+                    $parsed['payer_name'], substr($sender, 0, 40), $body . "\n[Earlier reversal notice]\n" . $pay['raw_message'], $parsed['parser'],
+                    $sentAt ? date('Y-m-d H:i:s', $sentAt) : null, $paymentId]
+            );
+            $pay = Db::row("SELECT * FROM payments WHERE id = ?", [$paymentId]);
+            $deliveryId = self::queueEvent((int) $pay['merchant_id'], 'payment.reversed', ['payment' => self::paymentOut($pay, true)]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+        self::deliver($deliveryId);
     }
 
     /** References this payer number has paid for before. The merchant uses it to recognise a renewal. */
@@ -348,41 +430,71 @@ class Gateway
             return false;
         }
         $intents = Db::rows(
-            "SELECT * FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? ORDER BY id DESC",
-            [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount']]
+            "SELECT * FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? AND currency = ? ORDER BY id DESC",
+            [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount'], $pay['currency']]
         );
         if (!$intents) {
             self::hold($pay['id'], self::knownReferences($pay['merchant_id'], $pay['payer_key']) ? 'known_payer_no_intent' : 'no_waiting_intent');
             return false;
         }
-        // Same number and amount more than once: the newest is the one on the payer's screen.
+        // A newer browser request is not evidence that it owns this payment.
+        if (count(array_unique(array_column($intents, 'reference'))) > 1) {
+            self::hold($pay['id'], 'ambiguous_intents');
+            return false;
+        }
         return self::link($pay, $intents[0], 'number');
     }
 
     private static function link(array $pay, array $intent, $rule)
     {
-        $nameCheck = Parser::nameMatches($intent['payer_name'], $pay['payer_name']);
-        if ($rule === 'number') {
-            // A number already known against a DIFFERENT reference cannot be
-            // captured just by typing it somewhere else. Only a positive name
-            // match lets it through.
+        $pdo = Db::pdo();
+        $pdo->beginTransaction();
+        try {
+            // Lock both sides: two different receipts must never overwrite the
+            // same paid intent, and a reversal must not race an activation.
+            $pay = Db::row("SELECT * FROM payments WHERE id = ? FOR UPDATE", [(int) $pay['id']]);
+            $intent = Db::row("SELECT * FROM intents WHERE id = ? FOR UPDATE", [(int) $intent['id']]);
+            if (!$pay || !$intent || $pay['status'] !== 'unmatched' || $pay['kind'] !== 'credit'
+                || (int) $pay['reversed'] !== 0 || $intent['status'] !== 'waiting'
+                || (int) $intent['payment_id'] !== 0 || $intent['expires_at'] <= self::now()
+                || (int) $pay['merchant_id'] !== (int) $intent['merchant_id']
+                || $pay['currency'] !== $intent['currency']
+                || abs((float) $pay['amount'] - (float) $intent['amount']) >= 0.005
+                || $pay['payer_key'] === '' || !hash_equals($pay['payer_key'], $intent['payer_key'])) {
+                $pdo->rollBack();
+                return false;
+            }
+            $nameCheck = Parser::nameMatches($intent['payer_name'], $pay['payer_name']);
+            if ($rule === 'number') {
+                $candidates = Db::rows("SELECT reference FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? AND currency = ? FOR UPDATE", [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount'], $pay['currency']]);
+                if (count(array_unique(array_column($candidates, 'reference'))) > 1) {
+                    self::hold($pay['id'], 'ambiguous_intents');
+                    $pdo->commit();
+                    return false;
+                }
+            }
             $others = Db::row("SELECT COUNT(*) c FROM payers WHERE merchant_id = ? AND payer_key = ? AND reference <> ?", [(int) $pay['merchant_id'], $pay['payer_key'], $intent['reference']]);
             if ((int) $others['c'] > 0 && $nameCheck !== true) {
                 self::hold($pay['id'], 'number_held_by_another_reference');
+                $pdo->commit();
                 return false;
             }
+            Db::run(
+                "UPDATE payments SET status = 'matched', hold_reason = '', match_rule = ?, name_check = ?, intent_id = ?, reference = ?, matched_at = ? WHERE id = ?",
+                [$rule, $nameCheck === true ? 'match' : ($nameCheck === false ? 'mismatch' : 'none'), (int) $intent['id'], $intent['reference'], self::now(), (int) $pay['id']]
+            );
+            Db::run("UPDATE intents SET status = 'paid', payment_id = ? WHERE id = ?", [(int) $pay['id'], (int) $intent['id']]);
+            self::remember($pay, $intent['reference']);
+            $intent = Db::row("SELECT * FROM intents WHERE id = ?", [(int) $intent['id']]);
+            // The durable event and payment commit together. Network delivery
+            // happens only after the database transaction has committed.
+            $deliveryId = self::queueEvent((int) $pay['merchant_id'], 'payment.matched', ['intent' => self::intentOut($intent)]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
         }
-        $done = Db::run(
-            "UPDATE payments SET status = 'matched', hold_reason = '', match_rule = ?, name_check = ?, intent_id = ?, reference = ?, matched_at = ? WHERE id = ? AND status = 'unmatched'",
-            [$rule, $nameCheck === true ? 'match' : ($nameCheck === false ? 'mismatch' : 'none'), (int) $intent['id'], $intent['reference'], self::now(), (int) $pay['id']]
-        );
-        if (!$done) {
-            return false; // another request matched it first
-        }
-        Db::run("UPDATE intents SET status = 'paid', payment_id = ? WHERE id = ?", [(int) $pay['id'], (int) $intent['id']]);
-        self::remember($pay, $intent['reference']);
-        $intent = Db::row("SELECT * FROM intents WHERE id = ?", [(int) $intent['id']]);
-        self::emit((int) $pay['merchant_id'], 'payment.matched', ['intent' => self::intentOut($intent)]);
+        self::deliver($deliveryId);
         return true;
     }
 
@@ -405,13 +517,19 @@ class Gateway
      */
     public static function assign(array $m, $paymentPublicId, $reference, $rule = 'manual')
     {
+        if (!is_string($reference)) {
+            return ['error' => ['code' => 'bad_request', 'message' => 'A reference must be a text value.']];
+        }
         $pay = Db::row("SELECT * FROM payments WHERE merchant_id = ? AND public_id = ?", [(int) $m['id'], $paymentPublicId]);
         $reference = trim((string) $reference);
         if (!$pay) {
             return ['error' => ['code' => 'not_found', 'message' => 'Payment not found.']];
         }
-        if ($reference === '') {
+        if ($reference === '' || strlen($reference) > 100) {
             return ['error' => ['code' => 'reference_required', 'message' => 'A reference is required.']];
+        }
+        if ($pay['kind'] !== 'credit' || $pay['currency'] !== $m['currency']) {
+            return ['error' => ['code' => 'needs_review', 'message' => 'Only a parsed credit in the merchant currency can be assigned.']];
         }
         if ((int) $pay['reversed'] === 1) {
             return ['error' => ['code' => 'reversed', 'message' => 'This payment was reversed by the network.']];
@@ -422,8 +540,11 @@ class Gateway
                 : ['error' => ['code' => 'already_matched', 'message' => 'This payment already belongs to ' . $pay['reference'] . '.']];
         }
         $rule = in_array($rule, ['manual', 'remembered'], true) ? $rule : 'manual';
-        Db::run("UPDATE payments SET status = 'matched', hold_reason = '', match_rule = ?, reference = ?, matched_at = ? WHERE id = ? AND status = 'unmatched'", [$rule, substr($reference, 0, 100), self::now(), (int) $pay['id']]);
+        Db::run("UPDATE payments SET status = 'matched', hold_reason = '', match_rule = ?, reference = ?, matched_at = ? WHERE id = ? AND status = 'unmatched' AND reversed = 0", [$rule, $reference, self::now(), (int) $pay['id']]);
         $pay = Db::row("SELECT * FROM payments WHERE id = ?", [(int) $pay['id']]);
+        if ((int) $pay['reversed'] === 1) {
+            return ['error' => ['code' => 'reversed', 'message' => 'This payment was reversed by the network.']];
+        }
         if ($pay['reference'] !== $reference) {
             return ['error' => ['code' => 'already_matched', 'message' => 'This payment already belongs to ' . $pay['reference'] . '.']];
         }
@@ -434,15 +555,19 @@ class Gateway
     /**
      * "I paid but nothing happened." The payer gives the transaction ID from
      * their own message. An invented ID finds no payment. A real one must
-     * also be theirs: the paying number has to equal the intent's, or, where
-     * the network sent no number, the name has to match.
+     * also match the intent's paying number. A name alone is not proof; a
+     * receipt with no payer number needs the provider to review and assign it.
      */
     public static function claim(array $m, $intentPublicId, $trxId, $ip)
     {
+        if (!is_string($trxId)) {
+            return ['error' => ['code' => 'bad_transaction_id', 'message' => 'Please enter the transaction ID from your payment message.']];
+        }
         $mid = (int) $m['id'];
+        $ip = filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '';
         $trxId = strtoupper(preg_replace('/[^A-Za-z0-9.\-]/', '', (string) $trxId));
         $tries = Db::row("SELECT COUNT(*) c FROM claims WHERE merchant_id = ? AND ip = ? AND ok = 0 AND created_at > ?", [$mid, $ip, date('Y-m-d H:i:s', time() - 600)]);
-        if ($ip !== '' && (int) $tries['c'] >= 5) {
+        if ((int) $tries['c'] >= 5) {
             return ['error' => ['code' => 'too_many_attempts', 'message' => 'Too many attempts. Please wait a few minutes.']];
         }
         $fail = function ($code, $msg) use ($mid, $ip, $trxId) {
@@ -454,39 +579,43 @@ class Gateway
         if (!$intent) {
             return ['error' => ['code' => 'intent_not_found', 'message' => 'Please start the payment again, then claim it.']];
         }
-        if (strlen($trxId) < 6) {
+        if (strlen($trxId) < 6 || strlen($trxId) > 64) {
             return $fail('bad_transaction_id', 'Please enter the transaction ID from your payment message.');
         }
-        $pay = Db::row(
-            "SELECT * FROM payments WHERE merchant_id = ? AND UPPER(trx_id) = ? AND kind = 'credit' AND received_at > ? ORDER BY id DESC LIMIT 1",
+        $matches = Db::rows(
+            "SELECT * FROM payments WHERE merchant_id = ? AND trx_id = ? AND kind = 'credit' AND received_at > ? ORDER BY id DESC LIMIT 2",
             [$mid, $trxId, date('Y-m-d H:i:s', time() - self::CLAIM_DAYS * 86400)]
         );
-        if (!$pay) {
+        if (!$matches) {
             return $fail('payment_not_found', 'We have not received that payment yet. If you have just paid, wait a moment and try again.');
         }
+        if (count($matches) !== 1) {
+            return $fail('needs_review', 'More than one receipt has that transaction ID. Please contact your provider.');
+        }
+        $pay = $matches[0];
         if ((int) $pay['reversed'] === 1) {
             return $fail('reversed', 'That payment was reversed. Please contact your provider.');
         }
+        if ($pay['payer_key'] === '' || !hash_equals($pay['payer_key'], $intent['payer_key'])) {
+            return $fail('not_yours', 'The paying number could not be verified for this purchase. Please contact your provider.');
+        }
+        if ($pay['currency'] !== $intent['currency'] || abs((float) $pay['amount'] - (float) $intent['amount']) >= 0.005) {
+            return $fail('amount_mismatch', 'That payment does not match the price and currency you chose. Please contact your provider.');
+        }
         if ($pay['status'] === 'matched') {
             // Claiming twice gives the same answer, never a second credit.
-            if ($pay['reference'] === $intent['reference']) {
-                return ['intent' => self::intentOut(Db::row("SELECT * FROM intents WHERE id = ?", [(int) ($pay['intent_id'] ?: $intent['id'])]))];
+            if ($pay['reference'] === $intent['reference'] && (int) $pay['intent_id'] > 0) {
+                return ['intent' => self::intentOut(Db::row("SELECT * FROM intents WHERE id = ?", [(int) $pay['intent_id']]))];
             }
             return $fail('already_used', 'That payment is already in use. Please contact your provider.');
         }
-        if (abs((float) $pay['amount'] - (float) $intent['amount']) >= 0.005) {
-            return $fail('amount_mismatch', 'That payment does not match the price you chose. Please contact your provider.');
+        if ($intent['status'] !== 'waiting' || (int) $intent['payment_id'] !== 0 || $intent['expires_at'] <= self::now()) {
+            return $fail('intent_not_available', 'This purchase is paid or expired. Please start a new purchase to claim an unused receipt.');
         }
-        $owns = $pay['payer_key'] !== ''
-            ? hash_equals($pay['payer_key'], $intent['payer_key'])
-            : Parser::nameMatches($intent['payer_name'], $pay['payer_name']) === true;
-        if (!$owns) {
-            return $fail('not_yours', 'That payment came from a different number. Start again and enter the number the money was sent from.');
-        }
-        Db::run("INSERT INTO claims (merchant_id, ip, trx_id, ok, created_at) VALUES (?,?,?,1,?)", [$mid, $ip, substr($trxId, 0, 64), self::now()]);
         if (!self::link($pay, $intent, 'claim')) {
             return ['error' => ['code' => 'needs_review', 'message' => 'This payment needs your provider to confirm it.']];
         }
+        Db::run("INSERT INTO claims (merchant_id, ip, trx_id, ok, created_at) VALUES (?,?,?,1,?)", [$mid, $ip, $trxId, self::now()]);
         return ['intent' => self::intentOut(Db::row("SELECT * FROM intents WHERE id = ?", [(int) $intent['id']]))];
     }
 
@@ -501,13 +630,18 @@ class Gateway
      */
     public static function emit($merchantId, $type, array $data)
     {
+        self::deliver(self::queueEvent($merchantId, $type, $data));
+    }
+
+    private static function queueEvent($merchantId, $type, array $data)
+    {
         $eventId = self::newId('evt');
         $payload = json_encode(['id' => $eventId, 'type' => $type, 'created' => time(), 'data' => $data]);
         Db::run(
             "INSERT INTO webhook_deliveries (event_id, merchant_id, type, payload, status, attempts, next_attempt_at, created_at) VALUES (?,?,?,?, 'pending', 0, ?, ?)",
             [$eventId, (int) $merchantId, $type, $payload, self::now(), self::now()]
         );
-        self::deliver(Db::lastId());
+        return Db::lastId();
     }
 
     public static function sign($secret, $timestamp, $body)
@@ -546,15 +680,32 @@ class Gateway
 
     public static function httpPost($url, $body, array $headers, $timeout)
     {
+        try {
+            $target = WebhookTarget::resolve($url, (bool) Config::get('allow_insecure_webhooks', false));
+        } catch (InvalidArgumentException $e) {
+            return ['code' => 0, 'body' => ''];
+        }
         $ch = curl_init($url);
+        $out = '';
         curl_setopt_array($ch, [
             CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => max(1, min(30, (int) $timeout)),
+            CURLOPT_FOLLOWLOCATION => false, CURLOPT_MAXREDIRS => 0,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | (Config::get('allow_insecure_webhooks', false) ? CURLPROTO_HTTP : 0),
+            CURLOPT_PROXY => '', CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_WRITEFUNCTION => function ($handle, $chunk) use (&$out) {
+                if (strlen($out) + strlen($chunk) > 65536) return 0;
+                $out .= $chunk;
+                return strlen($chunk);
+            },
         ]);
-        $out = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if (!$target['literal']) {
+            $address = strpos($target['address'], ':') !== false ? '[' . $target['address'] . ']' : $target['address'];
+            curl_setopt($ch, CURLOPT_RESOLVE, [$target['host'] . ':' . $target['port'] . ':' . $address]);
+        }
+        $ok = curl_exec($ch);
+        $code = $ok === false ? 0 : (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        return ['code' => $code, 'body' => $out === false ? '' : $out];
+        return ['code' => $code, 'body' => $ok === false ? '' : $out];
     }
 }

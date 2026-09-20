@@ -250,8 +250,8 @@ class Parser
 
         // Amount: the first currency figure after the word received. Only
         // known currency words count, so "TID 98765432101" is never an amount.
-        // The merchant's own currency counts too, so a country we have never
-        // seen a message from still reads correctly.
+        // Recognise the configured currency code without assuming that an
+        // unfamiliar receipt's language or structure can be understood.
         $currencies = self::$currencies;
         $own = strtoupper(trim((string) $merchantCurrency));
         if (preg_match('/^[A-Z]{2,5}$/', $own) && !isset($currencies[$own])) {
@@ -282,8 +282,11 @@ class Parser
         // A credit needs its transaction ID and its amount. The payer's number
         // is wanted but not required: without it the payment is still real
         // money, it just cannot be matched automatically.
-        if ($out['trx_id'] !== '' && $out['amount'] > 0) {
+        if ($out['trx_id'] !== '' && is_finite($out['amount']) && $out['amount'] > 0 && $out['amount'] <= 999999999999.99) {
             $out['kind'] = 'credit';
+        }
+        if (!is_finite($out['amount']) || $out['amount'] > 999999999999.99) {
+            $out['amount'] = 0.0;
         }
         return $out;
     }

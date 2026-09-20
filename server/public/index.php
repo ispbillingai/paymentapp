@@ -4,10 +4,14 @@
  *
  *   Listener phones      POST /v1/device/messages            X-Device-Key
  *   Merchants            everything else under /v1           Authorization: Bearer sk_live_...
- *   New merchants        POST /v1/merchants/register         open, proven by a challenge
+ *   New merchants        POST /v1/merchants/register         challenge; existing accounts also require their current key
  *
  * Replies are JSON. Errors look like { "error": { "code": "...", "message": "..." } }.
  */
+
+// Deployment PHP settings must also disable startup error display.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 
 require dirname(__DIR__) . '/src/Db.php';
 require dirname(__DIR__) . '/src/Parser.php';
@@ -16,6 +20,12 @@ require dirname(__DIR__) . '/src/Gateway.php';
 date_default_timezone_set('UTC');
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
+header('Cache-Control: no-store');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
+if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    header('Strict-Transport-Security: max-age=31536000');
+}
 
 function out($data, $code = 200)
 {
@@ -31,8 +41,35 @@ function fail($code, $message, $http = 400)
 
 function body()
 {
-    $data = json_decode((string) file_get_contents('php://input'), true);
-    return is_array($data) ? $data : [];
+    $raw = (string) file_get_contents('php://input', false, null, 0, 65537);
+    if (strlen($raw) > 65536) {
+        fail('request_too_large', 'Request bodies must be no larger than 64 KiB.', 413);
+    }
+    $data = json_decode($raw);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_object($data)) {
+        fail('invalid_json', 'Send a valid JSON object as the request body.', 400);
+    }
+    return json_decode($raw, true);
+}
+
+function bearerKey()
+{
+    $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+    if ($auth === '' && function_exists('apache_request_headers')) {
+        foreach (apache_request_headers() as $key => $value) {
+            if (strtolower($key) === 'authorization') $auth = $value;
+        }
+    }
+    return preg_match('/^Bearer\s+(\S+)$/i', trim($auth), $match) ? $match[1] : '';
+}
+
+function requireTextFields(array $in, array $fields)
+{
+    foreach ($fields as $field) {
+        if (isset($in[$field]) && !is_string($in[$field])) {
+            fail('bad_request', $field . ' must be a text value.');
+        }
+    }
 }
 
 function client_ip()
@@ -56,40 +93,24 @@ function reply(array $res, $okCode = 200)
 }
 
 // Works behind a rewrite (/v1/...) and without one (/index.php/v1/...).
-$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-$pos = strpos($path, '/v1/');
-$path = $pos === false ? '/' : substr($path, $pos);
+$path = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+if ($path === '/index.php') $path = '/';
+if (strpos($path, '/index.php/v1/') === 0) $path = substr($path, strlen('/index.php'));
+if ($path !== '/') $path = rtrim($path, '/');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $seg = array_values(array_filter(explode('/', $path), 'strlen'));
 
 try {
-    // The public site: a front page, the API reference and the app download.
-    if ($path === '/') {
-        $page = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
-        $page = $page === '' ? '' : basename($page);
-        if ($page === 'download') {
-            $apk = dirname(__DIR__, 2) . '/dist/PaymentBridge.apk';
-            if (!is_file($apk)) {
-                fail('not_found', 'The app is not available right now.', 404);
-            }
-            header('Content-Type: application/vnd.android.package-archive');
-            header('Content-Disposition: attachment; filename="PaymentBridge.apk"');
-            header('Content-Length: ' . filesize($apk));
-            readfile($apk);
-            exit;
-        }
-        $file = dirname(__DIR__) . '/site/' . ($page === 'docs' ? 'docs.html' : 'home.html');
-        if ($page !== '' && $page !== 'docs') {
-            http_response_code(404);
-        }
-        header('Content-Type: text/html; charset=utf-8');
-        echo str_replace('/*STYLE*/', file_get_contents(dirname(__DIR__) . '/site/_style.css'), file_get_contents($file));
+    if ($path !== '/v1' && strpos($path, '/v1/') !== 0) {
+        require dirname(__DIR__) . '/site/render.php';
+        renderPublicSite($path, $method);
         exit;
     }
 
     // ------------------------------------------------------------ phones
     if ($path === '/v1/device/messages' && $method === 'POST') {
         $in = body();
+        requireTextFields($in, ['key', 'version', 'from', 'text']);
         $key = $_SERVER['HTTP_X_DEVICE_KEY'] ?? ($_SERVER['HTTP_X_DIRECTPAY_KEY'] ?? ($in['key'] ?? ''));
         $device = Gateway::deviceByKey($key);
         if (!$device) {
@@ -105,6 +126,7 @@ try {
             out(['ok' => true, 'result' => 'pong']);
         }
         // Android sends milliseconds. An implausible time is dropped, not stored wrong.
+        if (isset($in['sentStamp']) && !is_numeric($in['sentStamp'])) fail('bad_request', 'sentStamp must be numeric.');
         $sent = (float) ($in['sentStamp'] ?? 0);
         $sent = $sent > 9999999999 ? $sent / 1000 : $sent;
         $sent = ($sent > 1500000000 && $sent < time() + 86400) ? (int) $sent : null;
@@ -114,11 +136,15 @@ try {
     // ------------------------------------------------------------ joining
     if ($path === '/v1/merchants/register' && $method === 'POST') {
         $in = body();
+        requireTextFields($in, ['name', 'webhook_url', 'dial_code', 'country', 'currency', 'nonce']);
         $url = trim((string) ($in['webhook_url'] ?? ''));
         $name = trim((string) ($in['name'] ?? ''));
         $dial = preg_replace('/\D+/', '', (string) ($in['dial_code'] ?? ''));
         if ($name === '' || $dial === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
             fail('bad_request', 'name, dial_code and webhook_url are required.');
+        }
+        if (!preg_match('/^[A-Za-z]{3}$/', $in['currency'] ?? '')) {
+            fail('bad_currency', 'currency must be a three-letter currency code.');
         }
         if (in_array($dial, (array) Config::get('blocked_dial_codes', []), true)) {
             fail('country_not_supported', 'Direct Number is not offered in this country.', 403);
@@ -127,11 +153,10 @@ try {
         if ($scheme !== 'https' && !($scheme === 'http' && Config::get('allow_insecure_webhooks', false))) {
             fail('https_required', 'The webhook address must use https.');
         }
-        if (!Config::get('allow_insecure_webhooks', false)) {
-            $ip = gethostbyname((string) parse_url($url, PHP_URL_HOST));
-            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                fail('bad_webhook_host', 'The webhook address must be reachable from the internet.');
-            }
+        try {
+            WebhookTarget::resolve($url, (bool) Config::get('allow_insecure_webhooks', false));
+        } catch (InvalidArgumentException $e) {
+            fail('bad_webhook_host', 'Use a publicly reachable webhook address without URL credentials or fragments.');
         }
         $ip = client_ip();
         $recent = Db::row("SELECT COUNT(*) c FROM signups WHERE ip = ? AND created_at > ?", [$ip, date('Y-m-d H:i:s', time() - 3600)]);
@@ -140,37 +165,60 @@ try {
         }
         Db::run("INSERT INTO signups (ip, created_at) VALUES (?, ?)", [$ip, date('Y-m-d H:i:s')]);
 
-        // Whoever answers at that address owns it. No shared secret is needed
-        // to join, and nobody can register an address they do not control.
+        // Echoing a public challenge proves reachability, not authority to rotate keys.
+        $existing = Db::row("SELECT * FROM merchants WHERE webhook_url = ?", [$url]);
+        if ($existing) {
+            $owner = Gateway::merchantByApiKey(bearerKey());
+            if (!$owner || (int) $owner['id'] !== (int) $existing['id']) {
+                fail('merchant_exists', 'This webhook is already registered. Its current merchant API key is required to reissue credentials.', 409);
+            }
+        }
         $challenge = bin2hex(random_bytes(16));
         $res = Gateway::httpPost($url, json_encode(['type' => 'challenge', 'challenge' => $challenge, 'nonce' => substr((string) ($in['nonce'] ?? ''), 0, 64)]), ['Content-Type: application/json', 'X-Gateway-Event: challenge'], 10);
         $echo = json_decode($res['body'], true);
-        if ($res['code'] !== 200 || !is_array($echo) || !hash_equals($challenge, (string) ($echo['challenge'] ?? ''))) {
+        if ($res['code'] !== 200 || !is_array($echo) || !is_string($echo['challenge'] ?? null) || !hash_equals($challenge, $echo['challenge'])) {
             fail('challenge_failed', 'The webhook address did not answer the verification request.', 422);
         }
 
-        $existing = Db::row("SELECT * FROM merchants WHERE webhook_url = ?", [$url]);
         if ($existing) {
-            // Same address proving itself again: lost keys. Old keys stop working.
+            // Authenticated rotation: commit all credential changes together.
             $secret = 'whsec_' . bin2hex(random_bytes(24));
-            Db::run("UPDATE api_keys SET status = 'revoked' WHERE merchant_id = ? AND status = 'active'", [(int) $existing['id']]);
-            Db::run("UPDATE merchants SET webhook_secret = ?, status = 'active' WHERE id = ?", [$secret, (int) $existing['id']]);
-            out(['merchant_id' => $existing['public_id'], 'api_key' => Gateway::issueApiKey($existing['id']), 'webhook_secret' => $secret, 'reissued' => true]);
+            $pdo = Db::pdo();
+            $pdo->beginTransaction();
+            try {
+                Db::row("SELECT id FROM merchants WHERE id = ? FOR UPDATE", [(int) $existing['id']]);
+                $activeKey = Db::row("SELECT id FROM api_keys WHERE id = ? AND merchant_id = ? AND status = 'active' FOR UPDATE", [(int) $owner['key_id'], (int) $existing['id']]);
+                if (!$activeKey) {
+                    $pdo->rollBack();
+                    fail('credentials_changed', 'Credentials changed while registration was being verified. Retry with the current merchant API key.', 409);
+                }
+                Db::run("UPDATE api_keys SET status = 'revoked' WHERE merchant_id = ? AND status = 'active'", [(int) $existing['id']]);
+                Db::run("UPDATE merchants SET webhook_secret = ? WHERE id = ?", [$secret, (int) $existing['id']]);
+                $key = Gateway::issueApiKey($existing['id']);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            out(['merchant_id' => $existing['public_id'], 'api_key' => $key, 'webhook_secret' => $secret, 'reissued' => true]);
         }
-        $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), $url);
+        $pdo = Db::pdo();
+        $pdo->beginTransaction();
+        try {
+            $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), $url);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) {
+                fail('merchant_exists', 'This webhook was registered by another request. Use the existing merchant credentials.', 409);
+            }
+            throw $e;
+        }
         out(['merchant_id' => $made['merchant']['public_id'], 'api_key' => $made['api_key'], 'webhook_secret' => $made['webhook_secret'], 'reissued' => false], 201);
     }
 
     // ------------------------------------------------------------ merchants
-    $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
-    if ($auth === '' && function_exists('apache_request_headers')) {
-        foreach (apache_request_headers() as $k => $v) {
-            if (strtolower($k) === 'authorization') {
-                $auth = $v;
-            }
-        }
-    }
-    $m = Gateway::merchantByApiKey(preg_replace('/^Bearer\s+/i', '', trim($auth)));
+    $m = Gateway::merchantByApiKey(bearerKey());
     if (!$m) {
         fail('unauthorized', 'A valid API key is required.', 401);
     }
@@ -209,7 +257,10 @@ try {
     }
     if (count($seg) === 4 && $seg[1] === 'intents' && $seg[3] === 'claim' && $method === 'POST') {
         $in = body();
-        reply(Gateway::claim($m, $seg[2], $in['transaction_id'] ?? '', substr((string) ($in['payer_ip'] ?? ''), 0, 45)));
+        requireTextFields($in, ['transaction_id', 'payer_ip']);
+        $payerIp = $in['payer_ip'] ?? client_ip();
+        if (!filter_var($payerIp, FILTER_VALIDATE_IP)) fail('bad_request', 'payer_ip must be a valid IP address.');
+        reply(Gateway::claim($m, $seg[2], $in['transaction_id'] ?? '', $payerIp));
     }
 
     if ($path === '/v1/payments' && $method === 'GET') {
