@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ISP Billing Pay: get paid on your own mobile money number</title>
+<meta name="description" content="A payment gateway for internet providers in countries with no mobile money API. Customers pay your own number and are connected automatically.">
+<style>/*STYLE*/</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="/"><i></i>ISP Billing Pay</a>
+  <nav><a href="#how">How it works</a><a href="#safe">Safety</a><a href="/docs">API</a><a href="/download">Get the app</a></nav>
+</div></header>
+
+<div class="hero"><div class="wrap">
+  <h1>Get paid on your own mobile money number. Your customer is connected on their own.</h1>
+  <p>A payment gateway for internet providers in countries where mobile money has no API. No merchant contract and no paperwork, and the money never passes through us. It lands on your number the moment your customer sends it.</p>
+  <a class="btn light" href="/download">Download the app</a>
+  <a class="btn line" href="/docs">Read the API</a>
+</div></div>
+
+<section id="how"><div class="wrap">
+  <h2>How it works</h2>
+  <p class="lead">Three parts, each doing one job. Your hotspot page asks for the payment, a phone you own hears it arrive, and we match the two and tell your billing system.</p>
+  <div class="grid">
+    <div class="card"><div class="n">1</div><h3>Your customer picks a package</h3><p>They type one name and the number they will pay from. Your page shows your number with a copy button. It works on a phone with no data bundle, because the page comes from your router and the money goes by the mobile money menu.</p></div>
+    <div class="card"><div class="n">2</div><h3>Your phone hears the payment</h3><p>An Android phone holding your money SIM runs the Payment Bridge app. When the network confirms a payment, the app reports it. If the phone is offline it keeps the message and sends it when it is back.</p></div>
+    <div class="card"><div class="n">3</div><h3>We match it and tell your system</h3><p>The paying number must equal the number your customer typed. When it does, your billing system gets a signed notice within seconds and connects the customer. Anything we cannot match safely waits for you. It is never guessed at.</p></div>
+  </div>
+</div></section>
+
+<section class="alt" id="safe"><div class="wrap">
+  <h2>Built so a payment cannot go to the wrong person</h2>
+  <p class="lead">The rules are simple on purpose, and they are the same for every merchant.</p>
+  <ul class="ticks">
+    <li><b>The number decides.</b> The amount is only a check. Two people buying the same package in the same minute can never be mixed up.</li>
+    <li><b>Each payment counts once.</b> Every mobile money transaction ID is recorded one time. A repeated message credits nothing.</li>
+    <li><b>Typing another person's number does not work.</b> A number already known for one account cannot be captured from another device.</li>
+    <li><b>Paid but not connected?</b> The customer enters the transaction ID from their own message and recovers the payment themselves.</li>
+    <li><b>The phone passes on payment messages only.</b> Messages from people, banks and anyone else are dropped on the phone. They are never stored and never sent.</li>
+    <li><b>Signed both ways.</b> Your system talks to us with a secret API key. We talk to your system with a signed webhook it can verify.</li>
+  </ul>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Where it works today</h2>
+  <p class="lead">Any country whose mobile money confirmation messages we have learned to read. We add networks as merchants ask for them.</p>
+  <table>
+    <tr><th>Country</th><th>Networks</th></tr>
+    <tr><td>Uganda</td><td>MTN MoMo, Airtel Money</td></tr>
+    <tr><td>Ghana</td><td>MTN MoMo, Telecel Cash, AT Money</td></tr>
+  </table>
+  <p>Kenya is not offered, because M-Pesa already reports payments to billing systems directly.</p>
+</div></section>
+
+<section class="alt"><div class="wrap">
+  <h2>For developers</h2>
+  <p class="lead">Ask for a payment, then wait for the webhook. That is the whole integration.</p>
+<pre><code>curl https://ispbillingpay.com/v1/intents \
+  -H "Authorization: Bearer sk_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 1000, "payer_phone": "0772123456", "payer_name": "John", "reference": "customer-4417"}'</code></pre>
+  <p><a href="/docs">Full API reference</a></p>
+</div></section>
+
+<footer><div class="wrap">ISP Billing Pay. Payments go straight to the merchant's own number. We never hold customer money.</div></footer>
+</body>
+</html>

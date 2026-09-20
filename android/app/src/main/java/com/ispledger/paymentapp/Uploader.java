@@ -27,7 +27,7 @@ final class Uploader {
             int code = post(c, body);
             return explain(c, code);
         } catch (Exception e) {
-            return problem(c, "Could not reach your dashboard. Check the address and the phone's internet.");
+            return problem(c, "Could not reach the payment service. Check this phone's internet.");
         }
     }
 
@@ -72,12 +72,12 @@ final class Uploader {
             return "";
         }
         if (code == 401) {
-            return problem(c, "Your dashboard did not accept this key. Create a new key on the Direct Number page and paste it here.");
+            return problem(c, "This key was not accepted. Create a new key on the Direct Number page of your dashboard and paste it here.");
         }
         if (code == 403) {
             return problem(c, "Direct Number is not available for this dashboard.");
         }
-        return problem(c, "Your dashboard answered with an error (" + code + "). It will be tried again.");
+        return problem(c, "The payment service answered with an error (" + code + "). It will be tried again.");
     }
 
     private static String problem(Context c, String why) {
@@ -93,7 +93,7 @@ final class Uploader {
             con.setRequestMethod("POST");
             con.setDoOutput(true);
             con.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            con.setRequestProperty("X-Directpay-Key", Prefs.key(c));
+            con.setRequestProperty("X-Device-Key", Prefs.key(c));
             try (OutputStream os = con.getOutputStream()) {
                 os.write(body.toString().getBytes(StandardCharsets.UTF_8));
             }

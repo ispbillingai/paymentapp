@@ -36,16 +36,6 @@
             android:text="@string/btn_allow_battery"
             android:visibility="gone" />
 
-        <TextView style="@style/Label" android:text="@string/label_url" />
-        <EditText
-            android:id="@+id/url"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/hint_url"
-            android:importantForAutofill="no"
-            android:inputType="textUri"
-            android:singleLine="true" />
-
         <TextView style="@style/Label" android:text="@string/label_key" />
         <EditText
             android:id="@+id/key"
@@ -70,6 +60,39 @@
             android:text="@string/help_senders"
             android:textColor="@color/muted"
             android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/advanced_toggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/advanced"
+            android:textColor="@color/brand"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:id="@+id/advanced"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView style="@style/Label" android:text="@string/label_url" />
+            <EditText
+                android:id="@+id/url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/hint_url"
+                android:importantForAutofill="no"
+                android:inputType="textUri"
+                android:singleLine="true" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/help_url"
+                android:textColor="@color/muted"
+                android:textSize="13sp" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/save"

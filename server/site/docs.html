@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API reference: ISP Billing Pay</title>
+<style>/*STYLE*/</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="logo" href="/"><i></i>ISP Billing Pay</a>
+  <nav><a href="/">Home</a><a href="/docs">API</a><a href="/download">Get the app</a></nav>
+</div></header>
+
+<section class="doc"><div class="wrap">
+  <h1>API reference</h1>
+  <p class="lead">Everything is JSON over https at <code>https://ispbillingpay.com/v1</code>. Errors look like <code>{"error": {"code": "...", "message": "..."}}</code>. The message is written to be shown to a person.</p>
+
+  <h2>Authentication</h2>
+  <p>Send your secret key as <code>Authorization: Bearer sk_live_...</code> on every merchant request. Keys are shown once when they are created and stored only as a hash, so keep yours safe. Listener phones use their own key in the <code>X-Device-Key</code> header and can do one thing only: report a message.</p>
+
+  <h2>Joining</h2>
+  <h3><span class="tag">POST</span>/v1/merchants/register</h3>
+  <p>Open to anyone, proven by a challenge. Send <code>name</code>, <code>country</code>, <code>dial_code</code>, <code>currency</code>, <code>webhook_url</code> and a <code>nonce</code> of your choosing. Before replying, we POST <code>{"type": "challenge", "challenge": "...", "nonce": "..."}</code> to your webhook address. Answer with <code>{"challenge": "..."}</code> and status 200, and only if the nonce is the one you just sent. The reply then carries your <code>api_key</code> and <code>webhook_secret</code>.</p>
+  <p>Registering an address that is already known, and passing its challenge again, replaces its keys. That is how lost keys are recovered.</p>
+
+  <h2>Payment intents</h2>
+  <p>An intent says: I expect this amount, from this number, for this reference of mine. It stays matchable for 24 hours.</p>
+  <h3><span class="tag">POST</span>/v1/intents</h3>
+  <table>
+    <tr><th>Field</th><th>Meaning</th></tr>
+    <tr><td><code>amount</code></td><td>The exact amount you expect, in your currency.</td></tr>
+    <tr><td><code>payer_phone</code></td><td>The number the money will be sent from, in any common format. Only its last digits are compared.</td></tr>
+    <tr><td><code>payer_name</code></td><td>One name of the payer. Used to confirm, never to decide on its own.</td></tr>
+    <tr><td><code>reference</code></td><td>Your own identifier for who this is for, such as a customer username. Required.</td></tr>
+    <tr><td><code>metadata</code></td><td>Anything you want handed back to you.</td></tr>
+  </table>
+  <p>The reply holds the <code>intent</code> and <code>pay_to</code>, the numbers your customer should send money to. Sending the same request again returns the same intent. If the money had already arrived before you asked, the intent comes back already <code>paid</code>.</p>
+  <h3><span class="tag">GET</span>/v1/intents/{id}</h3>
+  <p>The intent and, once paid, its payment. Use it as a fallback if a webhook has not reached you.</p>
+  <h3><span class="tag">POST</span>/v1/intents/{id}/claim</h3>
+  <p>For a customer who paid but was not matched. Send <code>transaction_id</code> from their own confirmation message and, if you can, their <code>payer_ip</code> so attempts can be limited. The payment must exist, equal the intent's amount, and come from the intent's number. Where the network sent no number, the name must match instead. Claiming twice returns the same result.</p>
+
+  <h2>Payments</h2>
+  <h3><span class="tag">GET</span>/v1/payments?status=unmatched</h3>
+  <p>Payments that reached your number, newest first. Unmatched ones carry <code>hold_reason</code> and <code>known_references</code>, the references this payer has paid for before.</p>
+  <h3><span class="tag">POST</span>/v1/payments/{id}/assign</h3>
+  <p>Take an unmatched payment for one of your references, either because a person decided or because you recognised a renewal. It succeeds once. A second attempt for a different reference is refused with <code>already_matched</code>.</p>
+  <table>
+    <tr><th>hold_reason</th><th>Meaning</th></tr>
+    <tr><td><code>no_waiting_intent</code></td><td>Nobody was waiting to pay from this number.</td></tr>
+    <tr><td><code>known_payer_no_intent</code></td><td>The payer is known to you but no intent was open. Usually a renewal.</td></tr>
+    <tr><td><code>no_number</code></td><td>The network left the payer number out of its message.</td></tr>
+    <tr><td><code>number_held_by_another_reference</code></td><td>The number belongs to a different reference and the name did not match. A person should decide.</td></tr>
+    <tr><td><code>unread</code></td><td>The message looked like a payment but could not be read with certainty. It is kept in full and never guessed at.</td></tr>
+  </table>
+
+  <h2>Listener phones</h2>
+  <h3><span class="tag">GET</span>/v1/devices &nbsp; <span class="tag">POST</span>/v1/devices</h3>
+  <p>Create one with <code>provider</code>, <code>receiving_number</code>, <code>receiving_name</code> and an optional <code>label</code>. The reply carries the <code>device_key</code> once. <code>GET /v1/me</code> lists the providers available in your country.</p>
+  <h3><span class="tag">POST</span>/v1/devices/{id}/rotate &nbsp; <span class="tag">POST</span>/v1/devices/{id}/revoke</h3>
+  <p>Replace a phone's key, or stop a lost phone from reporting.</p>
+
+  <h2>Webhooks</h2>
+  <p>We POST JSON to your webhook address. Every event has an <code>id</code>. An event can arrive more than once, so handle each id once. Answer with any 2xx status quickly and do slow work afterwards. If you do not answer, we retry for about three days, at growing intervals.</p>
+  <table>
+    <tr><th>type</th><th>When</th></tr>
+    <tr><td><code>payment.matched</code></td><td>A payment found its intent. <code>data.intent</code> holds the intent with its payment.</td></tr>
+    <tr><td><code>payment.unmatched</code></td><td>Money arrived that could not be matched safely. <code>data.payment</code> and <code>data.known_references</code>.</td></tr>
+    <tr><td><code>payment.reversed</code></td><td>The network reversed a payment you were told about earlier.</td></tr>
+  </table>
+  <h3>Checking the signature</h3>
+  <p>Each request carries <code>X-Gateway-Signature: t=1758400000,v1=...</code>. Compute an HMAC SHA-256 of the timestamp, a dot, and the raw request body, using your webhook secret, and compare it to <code>v1</code> in constant time. Refuse anything more than five minutes old.</p>
+<pre><code>$expected = hash_hmac('sha256', $t . '.' . $rawBody, $webhookSecret);
+$ok = hash_equals($expected, $v1) &amp;&amp; abs(time() - $t) &lt;= 300;</code></pre>
+</div></section>
+
+<footer><div class="wrap">ISP Billing Pay. Payments go straight to the merchant's own number. We never hold customer money.</div></footer>
+</body>
+</html>

@@ -8,3 +8,7 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
+
+# Gateway server
+server/config.php
+server/tests/config.test.php

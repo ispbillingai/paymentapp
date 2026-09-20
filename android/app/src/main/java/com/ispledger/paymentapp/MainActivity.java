@@ -48,7 +48,15 @@ public class MainActivity extends Activity {
         allowSms = findViewById(R.id.allow_sms);
         allowBattery = findViewById(R.id.allow_battery);
 
-        url.setText(Prefs.url(this));
+        url.setText(Prefs.url(this).equals(Prefs.DEFAULT_URL) ? "" : Prefs.url(this));
+        final View advanced = findViewById(R.id.advanced);
+        advanced.setVisibility(url.getText().length() > 0 ? View.VISIBLE : View.GONE);
+        findViewById(R.id.advanced_toggle).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                advanced.setVisibility(advanced.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+            }
+        });
         key.setText(Prefs.key(this));
         senders.setText(Prefs.senders(this));
 
@@ -87,6 +95,9 @@ public class MainActivity extends Activity {
 
     private void saveAndTest() {
         String u = url.getText().toString().trim();
+        if (u.isEmpty()) {
+            u = Prefs.DEFAULT_URL;
+        }
         String k = key.getText().toString().trim();
         if (!u.startsWith("https://") && !(BuildConfig.DEBUG && u.startsWith("http://"))) {
             status.setText(R.string.err_url);
@@ -105,7 +116,7 @@ public class MainActivity extends Activity {
             public void run() {
                 final String problem = Uploader.ping(app);
                 if (problem.isEmpty()) {
-                    Outbox.get(app).note("Connected to your dashboard");
+                    Outbox.get(app).note("Connected");
                     Uploader.flush(app);
                 }
                 ui.post(new Runnable() {

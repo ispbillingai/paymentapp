@@ -1,50 +1,52 @@
-# Payment Bridge
+# ISP Billing Pay
 
-An Android app that lets an internet provider get paid on their own mobile money number and have the customer connected automatically, with no payment provider account and no API keys.
+A payment gateway for internet providers in countries where mobile money has no API. The customer pays the provider's own mobile money number. A phone the provider owns hears the confirmation arrive, the gateway matches it to the purchase it belongs to, and the provider's billing system is told with a signed webhook. The money never passes through the gateway.
 
-The provider keeps one Android phone switched on with the SIM that receives the money. When a mobile money confirmation message arrives, this app passes it to the provider's own billing dashboard. The dashboard matches the payment to the customer who was waiting and connects them.
-
-## Download
-
-[dist/PaymentBridge.apk](dist/PaymentBridge.apk) (about 30 KB, Android 5.0 and newer)
-
-On the phone, open the link, download the file and allow installation when Android asks.
-
-## Set up
-
-1. In your dashboard open Settings, then Payment Gateway, then DirectNumber. Add the phone: choose the network, enter the number that receives your money and the name registered on it.
-2. Copy the address and the key the page shows you.
-3. Open Payment Bridge on the phone, paste both in and tap Save and test.
-4. Tap Allow reading payment messages, then Keep running in the background.
-5. Send yourself a small amount. It appears in the dashboard under Transactions, then Direct Payments.
-
-Keep the phone on charge and online. If it goes quiet, the dashboard warns you. Payments that arrive while the phone has no internet are kept and sent as soon as it is back.
-
-## What the app can and cannot see
-
-* It asks only for permission to be told when a text message arrives. It cannot open or browse the inbox.
-* It passes on a message only when the sender name is on the mobile money list shown in the app. Messages from people, banks and everyone else are dropped on the phone. They are never stored and never sent anywhere.
-* A payment message is deleted from the app as soon as the dashboard confirms it has it.
-* It talks only to the address you type in, over https, and identifies itself with the key for that phone. If the phone is lost, revoke the key in the dashboard.
-
-The app has no third party libraries, no analytics and no adverts. Everything it does is in `app/src/main/java`.
-
-## What it sends
-
-One POST per payment message to the address you configured, with the header `X-Directpay-Key` and a JSON body:
-
-```json
-{ "from": "MobileMoney", "text": "the message", "sentStamp": 1758400000000, "sim": 0, "version": "1.0.0" }
-```
-
-Every five minutes it sends `{ "ping": 1 }` so the dashboard knows the phone is alive. Any reply with status 200 means the message was received. Anything else and the app keeps the message and tries again, which is safe because the dashboard records each transaction once.
-
-## Build it yourself
-
-You need Android Studio or the Android SDK with platform 34, and JDK 17 or newer.
+Live at https://ispbillingpay.com. API reference at https://ispbillingpay.com/docs.
 
 ```
-./gradlew assembleDebug
+customer pays the provider's number
+        |
+listener phone (android/)  ---- reports the message ---->  gateway (server/)
+                                                              |
+                                        matches it to a payment intent
+                                                              |
+provider's billing system  <---- signed webhook --------------+
+        ^                                                     ^
+        +---- creates payment intents with its API key -------+
 ```
 
-The debug build may talk to a test server over http. Release builds are https only. The release signing key is not in this repository.
+## What is in this repository
+
+| Folder | What it is |
+| --- | --- |
+| `server/` | The gateway. Plain PHP 8 and MySQL, no framework. Merchants, API keys, listener phones, payment intents, matching, claims and webhooks. It also serves the front page, the API reference and the app download. |
+| `android/` | Payment Bridge, the listener app. Plain Java, no third party libraries. |
+| `dist/` | The signed app, ready to install. Served at https://ispbillingpay.com/download. |
+
+## The matching rules
+
+They are deliberately strict, and the same for every merchant.
+
+* The payer **number** must equal the number on a waiting intent. Only its last digits are compared, so `0772123456`, `+256 772 123456` and `256772123456` are one number.
+* The **amount** must equal the intent's amount, and is never enough on its own. Two people buying the same thing in the same minute cannot be mixed up.
+* The **name** confirms. It decides only when a number is already known for a different reference, which is what typing a neighbour's number looks like.
+* Every transaction ID is recorded **once**. A repeated message credits nothing.
+* Anything that cannot be matched safely waits for a person. Nothing is guessed.
+
+## Running the gateway
+
+1. Point a virtual host at `server/public`. The rest of `server/` must stay outside the web root.
+2. Create a MySQL database and copy `server/config.sample.php` to `server/config.php`. The tables create themselves on the first request.
+3. Retry undelivered webhooks every minute: `* * * * * php /path/to/server/bin/deliver-webhooks.php`
+4. Billing dashboards join on their own from their Direct Number page. To create a merchant by hand: `php server/bin/create-merchant.php "Name" ghana 233 GHS https://example.com/webhook`
+
+Adding a country means adding its mobile money sender names and currency words to `server/src/Parser.php`, with real sample messages in hand.
+
+`server/tests/e2e_local.sh` runs the whole chain (gateway, a billing dashboard as its merchant, and the webhooks between them) on a developer machine.
+
+## The app
+
+See the privacy notes on the app's own screen and in `android/app/src/main/java`. In short: it asks only to be told when a text message arrives and cannot open the inbox, it passes on a message only when the sender name is on the mobile money list, it keeps a payment message until delivery is confirmed and then deletes it, and it talks only to the gateway over https.
+
+Build it with Android Studio, or `cd android && ./gradlew assembleDebug`. Release builds are https only. The release signing key is not in this repository.

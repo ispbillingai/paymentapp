@@ -9,19 +9,25 @@ final class Prefs {
     static final String DEFAULT_SENDERS =
             "MobileMoney, MTN MoMo, MTNMobMoney, MoMo, AirtelMoney, Airtel Money, TelecelCash, VodaCash, T-Cash, ATMoney";
 
+    /** The payment gateway. The owner only changes this when support asks them to. */
+    static final String DEFAULT_URL = "https://ispbillingpay.com/v1/device/messages";
+
     private Prefs() {}
 
     private static SharedPreferences sp(Context c) {
         return c.getApplicationContext().getSharedPreferences("paymentapp", Context.MODE_PRIVATE);
     }
 
-    static String url(Context c) { return sp(c).getString("url", ""); }
+    static String url(Context c) {
+        String u = sp(c).getString("url", "");
+        return u.isEmpty() ? DEFAULT_URL : u;
+    }
     static String key(Context c) { return sp(c).getString("key", ""); }
     static String senders(Context c) { return sp(c).getString("senders", DEFAULT_SENDERS); }
-    static boolean configured(Context c) { return url(c).length() > 8 && key(c).length() == 40; }
+    static boolean configured(Context c) { return key(c).length() == 40; }
 
     static void save(Context c, String url, String key, String senders) {
-        sp(c).edit().putString("url", url.trim()).putString("key", key.trim())
+        sp(c).edit().putString("url", url.trim().equals(DEFAULT_URL) ? "" : url.trim()).putString("key", key.trim())
                 .putString("senders", senders.trim().isEmpty() ? DEFAULT_SENDERS : senders.trim()).apply();
     }
 
