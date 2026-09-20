@@ -54,7 +54,7 @@ class Db
     private static function migrate()
     {
         // The last table in schema.sql doubles as the "already installed" marker.
-        if (self::$pdo->query("SHOW TABLES LIKE 'signups'")->fetch()) {
+        if (self::$pdo->query("SHOW TABLES LIKE 'portal_sessions'")->fetch()) {
             return;
         }
         $sql = file_get_contents(dirname(__DIR__) . '/schema.sql');

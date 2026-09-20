@@ -1,0 +1,41 @@
+<main id="main-content" class="signup-page">
+<section class="wrap signup-hero">
+  <div><p class="eyebrow">MERCHANT REGISTRATION</p><h1>Create your gateway account.</h1><p class="lead">Connect your billing system, verify where payment events should be delivered, and receive your live API credentials.</p></div>
+  <div class="signup-promise"><span>01</span><p><strong>Funds remain in your account</strong>Your customers continue paying your receiving number directly.</p></div>
+</section>
+<section class="wrap signup-layout">
+  <div class="signup-card">
+    <ol class="signup-progress" aria-label="Registration progress"><li class="active" data-progress="1"><span>1</span>Business</li><li data-progress="2"><span>2</span>Webhook</li><li data-progress="3"><span>3</span>Credentials</li></ol>
+    <form id="merchant-signup" novalidate>
+      <div class="signup-step" data-step="1">
+        <div class="form-heading"><p class="micro-label">STEP 1 OF 2</p><h2>Tell us about your business</h2><p>This information identifies your organisation and formats payments for your market.</p></div>
+        <div class="field"><label for="merchant-name">Business or ISP name</label><input id="merchant-name" name="name" type="text" maxlength="120" autocomplete="organization" placeholder="Example Internet Ltd" required><small>The name your team will recognise in gateway records.</small></div>
+        <div class="field"><label for="merchant-email">Work email</label><input id="merchant-email" name="email" type="email" maxlength="190" autocomplete="email" placeholder="you@example.com" required><small>You will use this email to sign in to the merchant workspace.</small></div>
+        <div class="field"><label for="merchant-phone">Phone number</label><input id="merchant-phone" name="phone" type="tel" maxlength="20" autocomplete="tel" placeholder="+256 700 000000" required></div>
+        <div class="field-row"><div class="field"><label for="merchant-password">Password</label><input id="merchant-password" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required><small>Use at least 12 characters.</small></div><div class="field"><label for="merchant-password-confirm">Confirm password</label><input id="merchant-password-confirm" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></div></div>
+        <div class="field"><label for="merchant-country">Country</label><select id="merchant-country" name="country" required><option value="">Choose your country</option></select><small>Kenya is handled by existing integrated payment options and is not available in this direct-payment flow.</small></div>
+        <div class="field-row"><div class="field"><label for="merchant-dial">Country calling code</label><div class="input-prefix"><span>+</span><input id="merchant-dial" name="dial_code" inputmode="numeric" pattern="[0-9]{1,8}" maxlength="8" placeholder="256" required></div></div><div class="field"><label for="merchant-currency">Currency</label><input id="merchant-currency" name="currency" maxlength="3" pattern="[A-Za-z]{3}" placeholder="UGX" required></div></div>
+        <fieldset class="channel-picker"><legend>Payment channel</legend><label class="channel-option selected"><input type="radio" name="channel" value="direct" checked><span class="channel-icon">↙</span><span><strong>Direct payment</strong><small>Use your dedicated phone to forward mobile money receipts. Available now.</small></span><b>ACTIVE</b></label><div class="channel-option disabled" aria-disabled="true"><span class="channel-icon">⌁</span><span><strong>Network provider APIs</strong><small>Connect supported provider accounts directly as integrations become available.</small></span><b>COMING SOON</b></div></fieldset>
+        <div class="form-actions"><span></span><button class="button button-dark" type="button" data-next>Continue to webhook <span aria-hidden="true">→</span></button></div>
+      </div>
+      <div class="signup-step" data-step="2" hidden>
+        <div class="form-heading"><p class="micro-label">STEP 2 OF 2</p><h2>Verify your billing system</h2><p>We test your webhook before issuing credentials. This proves that payment events are going to a server you control.</p></div>
+        <div class="field"><label for="webhook-url">HTTPS webhook URL</label><input id="webhook-url" name="webhook_url" type="url" inputmode="url" maxlength="2048" autocomplete="url" placeholder="https://billing.example.com/webhooks/isp-pay" required><small>Must be a public HTTPS endpoint. Private network and local addresses are blocked.</small></div>
+        <div class="challenge-box"><div><span class="micro-label">ONE-TIME VERIFICATION NONCE</span><code id="signup-nonce"></code></div><button class="copy-button" type="button" data-copy-target="signup-nonce">Copy nonce ⧉</button><p>When the gateway sends a <code>challenge</code> event with this nonce, reply with HTTP 200 and JSON containing the exact challenge value.</p></div>
+        <label class="check-field"><input id="challenge-ready" type="checkbox" required><span>My webhook is ready to answer the verification challenge.</span></label>
+        <div id="signup-error" class="form-error" role="alert" hidden></div>
+        <div class="form-actions"><button class="button button-outline" type="button" data-back>Back</button><button id="register-button" class="button button-dark" type="submit">Verify and create account <span aria-hidden="true">→</span></button></div>
+      </div>
+    </form>
+    <section id="credential-result" class="credential-result" hidden aria-labelledby="credential-title">
+      <div class="success-mark" aria-hidden="true">✓</div><p class="micro-label">ACCOUNT CREATED</p><h2 id="credential-title">Your connection is ready.</h2><p>Save these credentials now. For your security, the API key and webhook secret cannot be displayed again after you leave this page.</p>
+      <div class="credential-warning"><strong>Store these in a password manager or secrets vault.</strong> Never place them in public code, screenshots, support messages, or your customer login page.</div>
+      <div class="credential-list"><div><span>Merchant ID</span><code id="result-merchant"></code><button class="copy-button" type="button" data-copy-target="result-merchant">Copy</button></div><div><span>API key</span><code id="result-api-key"></code><button class="copy-button" type="button" data-copy-target="result-api-key">Copy</button></div><div><span>Webhook secret</span><code id="result-webhook-secret"></code><button class="copy-button" type="button" data-copy-target="result-webhook-secret">Copy</button></div></div>
+      <div class="form-actions credential-actions"><button id="download-credentials" class="button button-dark" type="button">Download credentials</button><a class="button button-outline" href="/docs#get-started">Continue to integration</a></div>
+      <p class="credential-footnote">Downloading creates a plain JSON file containing secrets. Move it to secure storage, then delete the downloaded copy.</p>
+    </section>
+  </div>
+  <aside class="signup-aside"><p class="eyebrow">BEFORE YOU START</p><h2>One secure connection between the gateway and your billing system.</h2><ul><li><span>✓</span><div><strong>A public HTTPS webhook</strong><p>Your server must receive and verify gateway events.</p></div></li><li><span>✓</span><div><strong>Your dedicated listener phone</strong><p>You will pair the Android listener after account creation.</p></div></li><li><span>✓</span><div><strong>Secure secret storage</strong><p>Keep keys on your server, away from browsers and public repositories.</p></div></li></ul><div class="aside-help"><strong>Already registered?</strong><p>Your API key is your account credential. Learn how to authenticate or safely rotate credentials.</p><a href="/docs#authentication">Open authentication guide →</a></div></aside>
+</section>
+</main>
+<script src="/assets/signup.js" defer></script>

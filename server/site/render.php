@@ -18,6 +18,9 @@ function renderPublicSite(string $path, string $method): void
         '/assets/site.css' => ['_style.css', 'text/css; charset=utf-8'],
         '/assets/site.js' => ['site.js', 'text/javascript; charset=utf-8'],
         '/assets/localization.js' => ['localization.js', 'text/javascript; charset=utf-8'],
+        '/assets/signup.js' => ['signup.js', 'text/javascript; charset=utf-8'],
+        '/assets/portal.js' => ['portal.js', 'text/javascript; charset=utf-8'],
+        '/assets/dashboard.js' => ['dashboard.js', 'text/javascript; charset=utf-8'],
         '/assets/logo-mark.svg' => ['logo-mark.svg', 'image/svg+xml'],
         '/assets/logo.svg' => ['logo.svg', 'image/svg+xml'],
         '/favicon.svg' => ['favicon.svg', 'image/svg+xml'],
@@ -41,6 +44,9 @@ function renderPublicSite(string $path, string $method): void
     }
     $pages = [
         '/' => ['home', 'Direct payments. Connected customers.', 'Connect direct mobile money payments to your ISP billing system with a dedicated Android listener, payment matching and signed webhooks.'],
+        '/signup' => ['signup', 'Create a merchant account', 'Register your ISP Billing Pay merchant account, choose a payment channel, verify your webhook and receive secure API credentials.'],
+        '/login' => ['login', 'Merchant sign in', 'Sign in to your ISP Billing Pay merchant workspace.'],
+        '/dashboard' => ['dashboard', 'Merchant workspace', 'Review gateway payments, channels, devices and integration health.'],
         '/docs' => ['docs', 'Developer documentation', 'Integrate ISP Billing Pay: merchant registration, listener devices, payment intents, signed webhooks and claims.'],
         '/partners' => ['partners', 'Build the next connection', 'Explore integration opportunities for ISP billing platforms, internet providers and local deployment teams.'],
         '/security' => ['security', 'Security and trust', 'Understand payment matching, merchant isolation, device credentials and signed webhook delivery at ISP Billing Pay.'],
@@ -79,8 +85,10 @@ function renderPublicSite(string $path, string $method): void
     if ($found) $html .= '<link rel="canonical" href="https://ispbillingpay.com' . $escape($path) . '"><meta property="og:type" content="website"><meta property="og:title" content="' . $escape($title) . ' | ISP Billing Pay"><meta property="og:description" content="' . $escape($description) . '"><meta property="og:url" content="https://ispbillingpay.com' . $escape($path) . '">';
     if ($name === 'home') $html .= '<script src="/assets/localization.js?v=' . filemtime($site . '/localization.js') . '" defer></script>';
     $html .= '</head><body id="top" data-page="' . $name . '">';
-    $html .= file_get_contents($site . '/_header.html');
+    $standalone = in_array($name, ['login', 'dashboard'], true);
+    if (!$standalone) $html .= file_get_contents($site . '/_header.html');
     $html .= $found ? file_get_contents($site . '/' . $name . '.html') : '<main id="main-content" class="wrap page-shell error-page"><p class="eyebrow">404 · A MISSED CONNECTION</p><h1>Let’s get you<br>back on track.</h1><p>This page could not be found. Visit the homepage or find the endpoint you need in the developer documentation.</p><div class="button-row"><a class="button button-dark" href="/">Back to home ↗</a><a class="button button-outline" href="/docs">Read the docs</a></div></main>';
-    $html .= file_get_contents($site . '/_footer.html') . '</body></html>';
+    if (!$standalone) $html .= file_get_contents($site . '/_footer.html');
+    $html .= '</body></html>';
     echo str_replace(['{{YEAR}}', 'contact@ispbillingpay.com'], [date('Y'), $escape($contact)], $html);
 }

@@ -145,4 +145,30 @@ CREATE TABLE IF NOT EXISTS signups (
     ip VARCHAR(45) NOT NULL,
     created_at DATETIME NOT NULL,
     KEY idx_signup_ip (ip, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS portal_users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    merchant_id INT NULL,
+    email VARCHAR(190) NOT NULL,
+    phone VARCHAR(20) NOT NULL DEFAULT '',
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'merchant',
+    status VARCHAR(12) NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL,
+    last_login_at DATETIME NULL,
+    UNIQUE KEY uq_portal_email (email),
+    KEY idx_portal_merchant (merchant_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS portal_sessions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    last_seen_at DATETIME NOT NULL,
+    UNIQUE KEY uq_portal_token (token_hash),
+    KEY idx_portal_session_user (user_id, expires_at),
+    KEY idx_portal_session_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

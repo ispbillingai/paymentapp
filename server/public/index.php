@@ -82,6 +82,18 @@ function client_ip()
     return $_SERVER['REMOTE_ADDR'] ?? '';
 }
 
+function portalSession()
+{
+    $token = $_COOKIE['isp_pay_session'] ?? '';
+    if (!preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+    return Db::row("SELECT u.* FROM portal_sessions s JOIN portal_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.status='active'", [hash('sha256', $token), date('Y-m-d H:i:s')]);
+}
+
+function portalCookie($token, $expires)
+{
+    setcookie('isp_pay_session', $token, ['expires' => $expires, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'httponly' => true, 'samesite' => 'Lax']);
+}
+
 /** A result from Gateway is either data or ['error' => [...]]. */
 function reply(array $res, $okCode = 200)
 {
@@ -105,6 +117,34 @@ try {
         require dirname(__DIR__) . '/site/render.php';
         renderPublicSite($path, $method);
         exit;
+    }
+
+    // ------------------------------------------------------------ merchant workspace
+    if ($path === '/v1/portal/login' && $method === 'POST') {
+        $in = body(); requireTextFields($in, ['email', 'password']);
+        $email = strtolower(trim((string) ($in['email'] ?? '')));
+        $recent = Db::row("SELECT COUNT(*) c FROM signups WHERE ip=? AND created_at>?", [client_ip(), date('Y-m-d H:i:s', time()-900)]);
+        if ((int) $recent['c'] >= 20) fail('too_many_attempts', 'Too many attempts. Try again later.', 429);
+        Db::run("INSERT INTO signups (ip, created_at) VALUES (?,?)", [client_ip(), date('Y-m-d H:i:s')]);
+        $user = Db::row("SELECT * FROM portal_users WHERE email=? AND status='active'", [$email]);
+        if (!$user || !password_verify((string) ($in['password'] ?? ''), $user['password_hash'])) { usleep(250000); fail('invalid_login', 'The email or password is incorrect.', 401); }
+        if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) Db::run("UPDATE portal_users SET password_hash=? WHERE id=?", [password_hash($in['password'], PASSWORD_DEFAULT), $user['id']]);
+        $token = bin2hex(random_bytes(32)); $expires = time()+28800;
+        Db::run("DELETE FROM portal_sessions WHERE expires_at < ?", [date('Y-m-d H:i:s')]);
+        Db::run("INSERT INTO portal_sessions (user_id,token_hash,expires_at,created_at,last_seen_at) VALUES (?,?,?,?,?)", [(int)$user['id'],hash('sha256',$token),date('Y-m-d H:i:s',$expires),date('Y-m-d H:i:s'),date('Y-m-d H:i:s')]);
+        Db::run("UPDATE portal_users SET last_login_at=? WHERE id=?", [date('Y-m-d H:i:s'),(int)$user['id']]); portalCookie($token,$expires); out(['ok'=>true]);
+    }
+    if ($path === '/v1/portal/logout' && $method === 'POST') {
+        $token=$_COOKIE['isp_pay_session']??''; if ($token) Db::run("DELETE FROM portal_sessions WHERE token_hash=?",[hash('sha256',$token)]); portalCookie('',time()-3600); out(['ok'=>true]);
+    }
+    if ($path === '/v1/portal/overview' && $method === 'GET') {
+        $user=portalSession(); if(!$user) fail('unauthorized','Sign in to continue.',401);
+        $owner=$user['role']==='owner'; $where=$owner?'1=1':'merchant_id='.(int)$user['merchant_id'];
+        $summary=Db::row("SELECT COALESCE(SUM(CASE WHEN kind='credit' AND reversed=0 THEN amount ELSE 0 END),0) total, SUM(status='matched') matched, SUM(status='unmatched') unmatched, MAX(currency) currency FROM payments WHERE $where");
+        $devices=Db::row("SELECT COUNT(*) total, SUM(status='active' AND last_seen>?) online FROM devices WHERE $where",[date('Y-m-d H:i:s',time()-900)]);
+        $payments=Db::rows("SELECT payer_name,payer_msisdn,trx_id,provider,amount,currency,status,received_at FROM payments WHERE $where ORDER BY id DESC LIMIT 12");
+        $merchant=$owner?null:Db::row("SELECT public_id,name,country,currency,webhook_url FROM merchants WHERE id=?",[(int)$user['merchant_id']]);
+        out(['user'=>['email'=>$user['email'],'role'=>$user['role']], 'merchant'=>$merchant, 'metrics'=>['total'=>$summary['total'],'matched'=>(int)$summary['matched'],'unmatched'=>(int)$summary['unmatched'],'currency'=>$summary['currency']?:($merchant['currency']??'USD'),'devices'=>(int)$devices['total'],'online'=>(int)$devices['online']], 'payments'=>$payments]);
     }
 
     // ------------------------------------------------------------ phones
@@ -136,13 +176,20 @@ try {
     // ------------------------------------------------------------ joining
     if ($path === '/v1/merchants/register' && $method === 'POST') {
         $in = body();
-        requireTextFields($in, ['name', 'webhook_url', 'dial_code', 'country', 'currency', 'nonce']);
+        requireTextFields($in, ['name', 'email', 'phone', 'password', 'channel', 'webhook_url', 'dial_code', 'country', 'currency', 'nonce']);
         $url = trim((string) ($in['webhook_url'] ?? ''));
         $name = trim((string) ($in['name'] ?? ''));
         $dial = preg_replace('/\D+/', '', (string) ($in['dial_code'] ?? ''));
+        $email = strtolower(trim((string) ($in['email'] ?? '')));
+        $phone = preg_replace('/[^0-9+]/', '', (string) ($in['phone'] ?? ''));
+        $password = (string) ($in['password'] ?? '');
         if ($name === '' || $dial === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
             fail('bad_request', 'name, dial_code and webhook_url are required.');
         }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 190) fail('bad_email', 'Enter a valid email address.');
+        if (strlen($password) < 12 || strlen($password) > 128) fail('weak_password', 'Use a password between 12 and 128 characters.');
+        if (($in['channel'] ?? 'direct') !== 'direct') fail('bad_channel', 'That payment channel is not available yet.');
+        if (Db::row("SELECT id FROM portal_users WHERE email = ?", [$email])) fail('email_exists', 'An account already uses this email address.', 409);
         if (!preg_match('/^[A-Za-z]{3}$/', $in['currency'] ?? '')) {
             fail('bad_currency', 'currency must be a three-letter currency code.');
         }
@@ -206,6 +253,7 @@ try {
         $pdo->beginTransaction();
         try {
             $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), $url);
+            Db::run("INSERT INTO portal_users (merchant_id, email, phone, password_hash, role, status, created_at) VALUES (?,?,?,?, 'merchant', 'active', ?)", [(int) $made['merchant']['id'], $email, substr($phone, 0, 20), password_hash($password, PASSWORD_DEFAULT), date('Y-m-d H:i:s')]);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
