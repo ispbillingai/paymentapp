@@ -59,7 +59,83 @@
   }
   const api = {currencies,countryCode,exampleFor,formatMoney,detectCountry};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.ISPPayLocalization = api;
   if (typeof document === 'undefined') return;
+
+  /* Coverage: show the visitor's own country, detected from their address, and
+     a box that opens the full scrollable list. Uses the same country data as
+     the examples above, so the two can never disagree. */
+  (function () {
+    const browser = document.getElementById('coverage-browser');
+    if (!browser) return;
+    const BUILT_IN = {UG:'MTN MoMo · Airtel Money', GH:'MTN MoMo · Telecel Cash · AT Money'};
+    const NOT_OFFERED = {KE:'M-Pesa already reports payments directly'};
+    let regionNames;
+    try { regionNames = new Intl.DisplayNames(['en'], {type:'region'}); } catch (_) {}
+    const label = code => (regionNames && regionNames.of(code)) || code;
+
+    const codes = Object.keys(currencies).filter(code => /^[A-Z]{2}$/.test(code))
+      .sort((a, b) => label(a).localeCompare(label(b)));
+    const list = document.getElementById('coverage-scroll');
+    const rows = codes.map(code => {
+      const li = document.createElement('li');
+      const built = BUILT_IN[code], off = NOT_OFFERED[code];
+      const cc = document.createElement('span'); cc.className = 'cc'; cc.textContent = code;
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = label(code);
+      const cur = document.createElement('span'); cur.className = 'cur'; cur.textContent = currencies[code];
+      const tag = document.createElement('span');
+      tag.className = 'tag' + (built ? ' built' : off ? ' off' : '');
+      tag.textContent = built ? 'Networks built in' : off ? 'Not offered' : 'Custom sender';
+      li.append(cc, nm, cur, tag);
+      li.dataset.search = (label(code) + ' ' + code + ' ' + currencies[code]).toLowerCase();
+      list.append(li);
+      return li;
+    });
+    document.getElementById('coverage-count').textContent = codes.length + ' countries';
+    browser.hidden = false;
+
+    const box = document.getElementById('coverage-all');
+    const panel = document.getElementById('coverage-list');
+    const search = document.getElementById('coverage-search');
+    const empty = document.getElementById('coverage-empty');
+    box.addEventListener('change', () => {
+      panel.hidden = !box.checked;
+      if (box.checked) search.focus();
+    });
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      let shown = 0;
+      rows.forEach(li => {
+        const hit = !q || li.dataset.search.indexOf(q) !== -1;
+        li.hidden = !hit;
+        if (hit) shown++;
+      });
+      empty.hidden = shown > 0;
+    });
+
+    const mine = document.getElementById('coverage-yours');
+    let store;
+    try { store = sessionStorage; } catch (_) {}
+    detectCountry({fetcher:window.fetch && window.fetch.bind(window), storage:store})
+      .then(result => {
+        const code = result && countryCode(result.country);
+        if (!code) return;
+        const built = BUILT_IN[code], off = NOT_OFFERED[code];
+        const badge = document.createElement('span');
+        badge.className = 'country-code';
+        badge.textContent = code;
+        const body = document.createElement('div');
+        const h = document.createElement('h3');
+        h.textContent = 'You are in ' + label(code);
+        const p = document.createElement('p');
+        p.textContent = off ? off
+          : built ? built + ' · ready to pick'
+          : 'Name your network sender · amounts in ' + currencies[code];
+        body.append(h, p);
+        mine.append(badge, body);
+      })
+      .catch(() => {});
+  })();
   const selector = document.getElementById('example-country');
   if (!selector) return;
   document.querySelector('.example-locality').hidden = false;
