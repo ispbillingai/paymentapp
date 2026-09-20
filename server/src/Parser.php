@@ -40,6 +40,7 @@ class Parser
         'mtn_gh'     => 'MTN MoMo',
         'telecel_gh' => 'Telecel Cash',
         'at_gh'      => 'AT Money',
+        'other'      => 'Mobile money',
     ];
 
     /** Currency words a confirmation message may use, mapped to the ISO code. */
@@ -212,7 +213,7 @@ class Parser
      *   unread    looks like money coming in but a field could not be read
      *             with certainty. Stored raw for the ISP, never guessed at.
      */
-    public static function parseMessage($provider, $body)
+    public static function parseMessage($provider, $body, $merchantCurrency = '')
     {
         $out = [
             'kind' => 'other', 'provider' => $provider, 'trx_id' => '', 'amount' => 0.0,
@@ -249,9 +250,16 @@ class Parser
 
         // Amount: the first currency figure after the word received. Only
         // known currency words count, so "TID 98765432101" is never an amount.
-        $curWords = implode('|', array_keys(self::$currencies));
+        // The merchant's own currency counts too, so a country we have never
+        // seen a message from still reads correctly.
+        $currencies = self::$currencies;
+        $own = strtoupper(trim((string) $merchantCurrency));
+        if (preg_match('/^[A-Z]{2,5}$/', $own) && !isset($currencies[$own])) {
+            $currencies[$own] = $own;
+        }
+        $curWords = implode('|', array_keys($currencies));
         if (preg_match('/received.{0,60}?\b(' . $curWords . ')\.?\s*([\d][\d,]*(?:\.\d{1,2})?)/i', $text, $m)) {
-            $out['currency'] = self::$currencies[strtoupper($m[1])];
+            $out['currency'] = $currencies[strtoupper($m[1])];
             $out['amount'] = (float) str_replace(',', '', $m[2]);
         }
 

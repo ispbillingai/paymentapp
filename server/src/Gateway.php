@@ -85,7 +85,7 @@ class Gateway
             return null;
         }
         return Db::row(
-            "SELECT d.*, m.dial_code, m.status AS merchant_status FROM devices d JOIN merchants m ON m.id = d.merchant_id
+            "SELECT d.*, m.dial_code, m.currency AS merchant_currency, m.status AS merchant_status FROM devices d JOIN merchants m ON m.id = d.merchant_id
               WHERE d.key_hash = ? AND d.status = 'active' AND m.status = 'active'",
             [hash('sha256', $key)]
         );
@@ -96,8 +96,16 @@ class Gateway
         $provider = (string) ($in['provider'] ?? '');
         $number = preg_replace('/[^\d+]/', '', (string) ($in['receiving_number'] ?? ''));
         $name = trim((string) ($in['receiving_name'] ?? ''));
-        if (!array_key_exists($provider, Parser::defaultSenders($m['dial_code']))) {
-            return ['error' => ['code' => 'unknown_provider', 'message' => 'Choose one of the mobile money networks available in your country.']];
+        // Networks we already know are picked from a list. Anywhere else in the
+        // world the merchant names the sender their payment messages come from,
+        // so no country has to wait for us before it can start.
+        $extraSenders = trim((string) ($in['extra_senders'] ?? ''));
+        if ($provider === 'other') {
+            if ($extraSenders === '') {
+                return ['error' => ['code' => 'sender_required', 'message' => 'Type the sender name your payment messages arrive from, exactly as your phone shows it.']];
+            }
+        } elseif (!array_key_exists($provider, Parser::defaultSenders($m['dial_code']))) {
+            return ['error' => ['code' => 'unknown_provider', 'message' => 'Choose your mobile money network.']];
         }
         $rkey = Parser::msisdnKey($number, Parser::msisdnDigitsFor($m['dial_code']));
         if ($rkey === '') {
@@ -261,7 +269,7 @@ class Gateway
         if ($provider === '') {
             return 'ignored';
         }
-        $p = Parser::parseMessage($provider, $body);
+        $p = Parser::parseMessage($provider, $body, (string) ($device['merchant_currency'] ?? ''));
         if ($p['kind'] === 'other') {
             return 'ignored';
         }

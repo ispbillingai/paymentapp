@@ -123,9 +123,6 @@ try {
         if (in_array($dial, (array) Config::get('blocked_dial_codes', []), true)) {
             fail('country_not_supported', 'Direct Number is not offered in this country.', 403);
         }
-        if (!Parser::defaultSenders($dial)) {
-            fail('country_not_ready', 'Mobile money networks for this country have not been added yet.', 422);
-        }
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
         if ($scheme !== 'https' && !($scheme === 'http' && Config::get('allow_insecure_webhooks', false))) {
             fail('https_required', 'The webhook address must use https.');
@@ -184,7 +181,7 @@ try {
             $providers[] = ['code' => $code, 'label' => Parser::providerLabel($code)];
         }
         out(['id' => $m['public_id'], 'name' => $m['name'], 'country' => $m['country'], 'dial_code' => $m['dial_code'], 'currency' => $m['currency'],
-             'webhook_url' => $m['webhook_url'], 'providers' => $providers, 'pay_to' => Gateway::payTo($m['id'])]);
+             'webhook_url' => $m['webhook_url'], 'providers' => array_merge($providers, [['code' => 'other', 'label' => 'Another network (type its sender name below)']]), 'pay_to' => Gateway::payTo($m['id'])]);
     }
 
     if ($path === '/v1/devices' && $method === 'GET') {
