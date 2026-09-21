@@ -208,11 +208,54 @@
       document.querySelectorAll('.portal-nav a[data-role]').forEach(link => {
         link.hidden = link.dataset.role !== data.user.role;
       });
+      viewingBanner(data.acting_as);
       return data;
     } catch (e) {
       problem(e.message);
       return null;
     }
+  }
+
+  /**
+   * While an owner is looking at one merchant's workspace, every page says so and
+   * offers the way back, so what is on screen is never mistaken for the whole gateway.
+   */
+  function viewingBanner(acting) {
+    const existing = document.querySelector('.viewing-banner');
+    if (existing) existing.remove();
+    if (!acting) return;
+    const banner = document.createElement('div');
+    banner.className = 'viewing-banner';
+    const text = document.createElement('p');
+    const label = document.createElement('strong');
+    label.textContent = acting.name;
+    text.append(document.createTextNode('Viewing as '), label,
+      document.createTextNode(' · you are seeing only this merchant’s payments, listeners and keys.'));
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'button button-outline button-small';
+    back.textContent = 'Back to owner view';
+    back.onclick = async () => {
+      back.disabled = true;
+      try {
+        await post('/v1/portal/view-as', {merchant_id: ''});
+        location.reload();
+      } catch (e) {
+        problem(e.message);
+        back.disabled = false;
+      }
+    };
+    banner.append(text, back);
+    const main = document.querySelector('.portal-main');
+    const header = main && main.querySelector('.portal-top');
+    if (header) header.insertAdjacentElement('afterend', banner);
+    else if (main) main.prepend(banner);
+  }
+
+  /** Switches the workspace to one merchant's view, or back to the whole gateway. */
+  async function viewAs(merchantId) {
+    await post('/v1/portal/view-as', {merchant_id: merchantId || ''});
+    location.assign('/dashboard');
   }
 
   /**
@@ -386,8 +429,10 @@
       el('portal-loading').textContent = e.message;
       return;
     }
-    const owner = data.user.role === 'owner';
+    // An owner looking at one merchant reads the page as that merchant would.
+    const owner = data.user.role === 'owner' && !data.acting_as;
     el('portal-user').textContent = data.user.email;
+    viewingBanner(data.acting_as);
     el('portal-greeting').textContent = owner ? 'Gateway overview' : (data.merchant && data.merchant.name ? data.merchant.name : 'Overview');
     el('metric-total').textContent = data.totals.length === 1
       ? money(data.totals[0].total, data.totals[0].currency)
@@ -539,6 +584,25 @@
       {label: 'Active keys', key: 'keys_active'},
       {label: 'Payments', key: 'payments'},
       {label: 'Added', cell: row => when(row.created_at)},
+      {
+        label: '',
+        cell: row => {
+          const open = document.createElement('button');
+          open.type = 'button';
+          open.className = 'copy-button';
+          open.textContent = 'View as';
+          open.onclick = async () => {
+            open.disabled = true;
+            try {
+              await viewAs(row.id);
+            } catch (e) {
+              problem(e.message);
+              open.disabled = false;
+            }
+          };
+          return open;
+        },
+      },
     ];
     async function load() {
       try {

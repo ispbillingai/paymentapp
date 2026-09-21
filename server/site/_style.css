@@ -151,3 +151,10 @@
   .operational-panel .button-row{width:100%}
   .row-actions{justify-content:flex-start}
 }
+
+/* an owner looking at one merchant's workspace */
+.viewing-banner{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:#fdf6e3;border:1px solid #ecdcb0;border-radius:9px;padding:14px 18px;margin-bottom:20px}
+.viewing-banner p{font-size:12.5px;line-height:1.7;margin:0;flex:1 1 260px;color:#775f26}
+.viewing-banner strong{color:#4c3d12}
+.viewing-banner .button{flex:0 0 auto;border-color:#ddc98f;background:#fff}
+.viewing-banner .button:hover{background:#faf2df}

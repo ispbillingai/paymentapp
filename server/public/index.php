@@ -86,7 +86,20 @@ function portalSession()
 {
     $token = $_COOKIE['isp_pay_session'] ?? '';
     if (!preg_match('/^[a-f0-9]{64}$/', $token)) return null;
-    return Db::row("SELECT u.* FROM portal_sessions s JOIN portal_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.status='active'", [hash('sha256', $token), date('Y-m-d H:i:s')]);
+    return Db::row("SELECT u.*, s.acting_merchant_id, s.id AS session_id FROM portal_sessions s JOIN portal_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.status='active'", [hash('sha256', $token), date('Y-m-d H:i:s')]);
+}
+
+/**
+ * Which merchant the signed-in person is looking at, as a SQL condition.
+ *
+ * A merchant only ever sees their own. A platform owner sees everything, unless
+ * they have chosen to look at one merchant's workspace, which narrows what is
+ * shown without granting anything: an owner can already act on any merchant.
+ */
+function portalScope(array $user)
+{
+    if ($user['role'] !== 'owner') return 'merchant_id=' . (int) $user['merchant_id'];
+    return $user['acting_merchant_id'] ? 'merchant_id=' . (int) $user['acting_merchant_id'] : '1=1';
 }
 
 function portalCookie($token, $expires)
@@ -145,18 +158,21 @@ try {
     }
     if ($path === '/v1/portal/overview' && $method === 'GET') {
         $user=portalSession(); if(!$user) fail('unauthorized','Sign in to continue.',401);
-        $owner=$user['role']==='owner'; $where=$owner?'1=1':'merchant_id='.(int)$user['merchant_id'];
+        $owner=$user['role']==='owner' && !$user['acting_merchant_id']; $where=portalScope($user);
         $totals=Db::rows("SELECT currency, COALESCE(SUM(amount),0) total FROM payments WHERE $where AND kind='credit' AND reversed=0 GROUP BY currency");
         $summary=Db::row("SELECT COALESCE(SUM(CASE WHEN kind='credit' AND reversed=0 THEN amount ELSE 0 END),0) total, SUM(status='matched') matched, SUM(status='unmatched') unmatched, MAX(currency) currency FROM payments WHERE $where");
         $devices=Db::row("SELECT COUNT(*) total, SUM(status='active' AND last_seen>?) online FROM devices WHERE $where",[date('Y-m-d H:i:s',time()-900)]);
         $payments=Db::rows("SELECT payer_name,payer_msisdn,trx_id,provider,amount,currency,status,received_at FROM payments WHERE $where ORDER BY id DESC LIMIT 12");
-        $merchant=$owner?null:Db::row("SELECT public_id,name,country,currency,webhook_url FROM merchants WHERE id=?",[(int)$user['merchant_id']]);
-        out(['totals'=>$totals,'user'=>['email'=>$user['email'],'role'=>$user['role']], 'merchant'=>$merchant, 'metrics'=>['total'=>$summary['total'],'matched'=>(int)$summary['matched'],'unmatched'=>(int)$summary['unmatched'],'currency'=>$summary['currency']?:($merchant['currency']??'USD'),'devices'=>(int)$devices['total'],'online'=>(int)$devices['online']], 'payments'=>$payments]);
+        // The owner's own account has no merchant; while looking at one, that is the merchant shown.
+        $shownId=$user['role']==='owner'?$user['acting_merchant_id']:$user['merchant_id'];
+        $merchant=$shownId?Db::row("SELECT public_id,name,country,currency,webhook_url FROM merchants WHERE id=?",[(int)$shownId]):null;
+        out(['totals'=>$totals,'user'=>['email'=>$user['email'],'role'=>$user['role']],
+             'acting_as'=>$user['role']==='owner'&&$merchant?['id'=>$merchant['public_id'],'name'=>$merchant['name']]:null, 'merchant'=>$merchant, 'metrics'=>['total'=>$summary['total'],'matched'=>(int)$summary['matched'],'unmatched'=>(int)$summary['unmatched'],'currency'=>$summary['currency']?:($merchant['currency']??'USD'),'devices'=>(int)$devices['total'],'online'=>(int)$devices['online']], 'payments'=>$payments]);
     }
 
     if ($path === '/v1/portal/operations' && $method === 'GET') {
         $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
-        $where=$user['role']==='owner'?'1=1':'merchant_id='.(int)$user['merchant_id'];
+        $where=portalScope($user);
         // deviceOut is what the API returns everywhere else, so the workspace shows the same fields.
         out(['devices'=>array_map(['Gateway','deviceOut'],Db::rows("SELECT * FROM devices WHERE $where ORDER BY id DESC LIMIT 50")),
           'webhooks'=>Db::rows("SELECT event_id,type,status,attempts,last_code,created_at FROM webhook_deliveries WHERE $where ORDER BY id DESC LIMIT 30"),
@@ -164,7 +180,7 @@ try {
     }
     if ($path === '/v1/portal/payments' && $method === 'GET') {
         $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
-        $where=$user['role']==='owner'?'1=1':'merchant_id='.(int)$user['merchant_id']; $args=[];
+        $where=portalScope($user); $args=[];
         $status=$_GET['status']??'';
         if(in_array($status,['matched','unmatched'],true)){ $where.=' AND status=?';$args[]=$status; }
         $before=max(0,(int)($_GET['before']??0)); if($before){$where.=' AND id<?';$args[]=$before;}
@@ -187,7 +203,7 @@ try {
      */
     if ($path === '/v1/portal/insights' && $method === 'GET') {
         $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
-        $where = $user['role'] === 'owner' ? '1=1' : 'merchant_id=' . (int) $user['merchant_id'];
+        $where = portalScope($user);
         $days = min(90, max(7, (int) ($_GET['days'] ?? 30)));
         $from = date('Y-m-d 00:00:00', time() - ($days - 1) * 86400);
         $daily = Db::rows("SELECT DATE(received_at) day, COUNT(*) count, COALESCE(SUM(amount),0) total,
@@ -220,8 +236,10 @@ try {
      * merchant of their own. Anything that issues a credential needs one.
      */
     $portalMerchant = static function (array $user) {
-        if ($user['merchant_id'] === null) return null;
-        return Db::row("SELECT * FROM merchants WHERE id = ?", [(int) $user['merchant_id']]);
+        // An owner looking at one merchant's workspace acts for that merchant.
+        $id = $user['role'] === 'owner' ? $user['acting_merchant_id'] : $user['merchant_id'];
+        if (!$id) return null;
+        return Db::row("SELECT * FROM merchants WHERE id = ?", [(int) $id]);
     };
     /** Issuing or replacing a credential asks for the account password again. */
     $confirmPassword = static function (array $user, array $in) {
@@ -242,9 +260,14 @@ try {
             }
             $providers[] = ['code' => 'other', 'label' => 'Another network (type its sender name)'];
         }
+        $acting = null;
+        if ($user['role'] === 'owner' && $user['acting_merchant_id'] && $merchant) {
+            $acting = ['id' => $merchant['public_id'], 'name' => $merchant['name']];
+        }
         out([
             'user' => ['email' => $user['email'], 'phone' => $user['phone'], 'role' => $user['role'],
                        'created_at' => $user['created_at'], 'last_login_at' => $user['last_login_at']],
+            'acting_as' => $acting,
             'merchant' => $merchant ? ['id' => $merchant['public_id'], 'name' => $merchant['name'], 'country' => $merchant['country'],
                 'dial_code' => $merchant['dial_code'], 'currency' => $merchant['currency'], 'webhook_url' => $merchant['webhook_url'],
                 'created_at' => $merchant['created_at'], 'pay_to' => Gateway::payTo((int) $merchant['id'])] : null,
@@ -273,9 +296,31 @@ try {
     $targetMerchant = static function (array $user, array $in) use ($portalMerchant) {
         if ($user['role'] !== 'owner') return $portalMerchant($user);
         $wanted = (string) ($in['merchant_id'] ?? '');
-        if ($wanted === '') return null;
+        // Named outright, else the merchant whose workspace the owner is looking at.
+        if ($wanted === '') return $portalMerchant($user);
         return Db::row("SELECT * FROM merchants WHERE public_id = ?", [$wanted]);
     };
+
+    /**
+     * Looking at one merchant's workspace. This changes what the owner is shown and
+     * what their actions default to; it grants nothing, since an owner may already
+     * act on any merchant. It never signs them in as that merchant's own user, and
+     * it lasts only for this browser session.
+     */
+    if ($path === '/v1/portal/view-as' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        if ($user['role'] !== 'owner') fail('forbidden', 'Only a platform owner can change whose workspace is shown.', 403);
+        $in = body(); requireTextFields($in, ['merchant_id']);
+        $wanted = trim((string) ($in['merchant_id'] ?? ''));
+        if ($wanted === '') {
+            Db::run("UPDATE portal_sessions SET acting_merchant_id = NULL WHERE id = ?", [(int) $user['session_id']]);
+            out(['ok' => true, 'acting' => null]);
+        }
+        $merchant = Db::row("SELECT id, public_id, name FROM merchants WHERE public_id = ?", [$wanted]);
+        if (!$merchant) fail('not_found', 'That merchant was not found.', 404);
+        Db::run("UPDATE portal_sessions SET acting_merchant_id = ? WHERE id = ?", [(int) $merchant['id'], (int) $user['session_id']]);
+        out(['ok' => true, 'acting' => ['id' => $merchant['public_id'], 'name' => $merchant['name']]]);
+    }
 
     /** Which networks are built in for one merchant's dialling code. */
     if ($path === '/v1/portal/senders' && $method === 'GET') {

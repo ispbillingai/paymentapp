@@ -168,6 +168,9 @@ CREATE TABLE IF NOT EXISTS portal_sessions (
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     last_seen_at DATETIME NOT NULL,
+    -- While a platform owner is looking at one merchant's workspace, that choice
+    -- belongs to this browser session alone and ends when the session does.
+    acting_merchant_id INT DEFAULT NULL,
     UNIQUE KEY uq_portal_token (token_hash),
     KEY idx_portal_session_user (user_id, expires_at),
     KEY idx_portal_session_expiry (expires_at)
