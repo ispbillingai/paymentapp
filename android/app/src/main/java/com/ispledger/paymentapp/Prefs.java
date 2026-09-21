@@ -34,6 +34,12 @@ final class Prefs {
     }
     static String key(Context c) { return sp(c).getString("key", ""); }
     static String senders(Context c) { return sp(c).getString("senders", DEFAULT_SENDERS); }
+    /**
+     * Stores the forwarding list exactly as given. An empty list is stored as
+     * empty, which forwards nothing: when the owner has switched every sender
+     * off, the safe reading is the literal one.
+     */
+    static void senders(Context c, String value) { sp(c).edit().putString("senders", value == null ? "" : value.trim()).apply(); }
     static boolean configured(Context c) { return key(c).length() == 40; }
 
     static void save(Context c, String url, String key, String senders) {

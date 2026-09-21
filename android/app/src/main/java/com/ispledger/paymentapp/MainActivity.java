@@ -191,6 +191,19 @@ public class MainActivity extends Activity {
         });
     }
 
+    /**
+     * Makes the list that decides forwarding match the list on the screen, now.
+     *
+     * There are two lists: the names shown here, and the one the receiver reads
+     * when a message arrives. Only Save and test used to write the second, so a
+     * name could be added, show as ticked, look finished, and forward nothing,
+     * and an unticked one kept forwarding until the next save, which is worse.
+     * What the screen says is what happens, from the moment it says it.
+     */
+    private void commitSenders() {
+        Prefs.senders(this, SenderList.enabledNames(senderRows));
+    }
+
     /** Takes what is in the field and puts it on the list, saying what happened. */
     private void addTypedSender() {
         String name = senders.getText().toString().trim().replace(",", " ").trim();
@@ -205,6 +218,7 @@ public class MainActivity extends Activity {
                 row.on = true;
                 senders.setText("");
                 drawSenders();
+                commitSenders();
                 dashboard.connectionFeedback(getString(R.string.sender_already_on, row.label));
                 return;
             }
@@ -216,6 +230,7 @@ public class MainActivity extends Activity {
             if (Senders.normalise(row.label).equals(Senders.normalise(name))) row.on = true;
         }
         drawSenders();
+        commitSenders();
         dashboard.connectionFeedback(getString(R.string.sender_added, name));
     }
 
@@ -255,7 +270,7 @@ public class MainActivity extends Activity {
             box.setTextColor(getResources().getColor(R.color.ink));
             box.setChecked(row.on);
             box.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-            box.setOnCheckedChangeListener((view, checked) -> row.on = checked);
+            box.setOnCheckedChangeListener((view, checked) -> { row.on = checked; commitSenders(); });
             Button drop = new Button(this, null, android.R.attr.borderlessButtonStyle);
             drop.setText(R.string.remove_sender);
             drop.setTextSize(12);
@@ -265,6 +280,7 @@ public class MainActivity extends Activity {
                 SenderList.remove(MainActivity.this, row);
                 senderRows.remove(row);
                 drawSenders();
+                commitSenders();
                 dashboard.connectionFeedback(getString(R.string.sender_removed, row.label));
             });
             line.addView(box);
@@ -288,6 +304,7 @@ public class MainActivity extends Activity {
             restore.setOnClickListener(v -> {
                 SenderList.restoreNetworks(MainActivity.this);
                 drawSenders();
+                commitSenders();
             });
             senderBoxes.addView(restore);
         }

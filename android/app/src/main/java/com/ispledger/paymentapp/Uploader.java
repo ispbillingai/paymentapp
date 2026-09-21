@@ -66,6 +66,11 @@ final class Uploader {
                     body.put("sentStamp", i.sentAt);
                     body.put("sim", i.sim);
                     body.put("version", BuildConfig.VERSION_NAME);
+                    // The list travels with the message, not only with the
+                    // five-minute report. A sender added a moment ago is one the
+                    // gateway has not heard of yet, and it would turn away the
+                    // very message the owner added it for.
+                    body.put("senders", Prefs.senders(c));
                     int code = post(c, body);
                     if (code == 200) {
                         box.delivered(i.id);

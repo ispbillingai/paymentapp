@@ -1,5 +1,5 @@
 {
-    "version_code": 18,
-    "version_name": "1.5.3",
-    "notes": "A sender name is matched the way you typed it, and a phone number matches however it arrives: type 0714430753 and a message from +254714430753 is the same number. Nothing is forwarded unless you have listed it."
+    "version_code": 19,
+    "version_name": "1.5.4",
+    "notes": "A sender you add, tick or remove now takes effect at once. Before, it only did after Save and test, so a name could look added and forward nothing."
 }
