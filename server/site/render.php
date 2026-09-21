@@ -1,41 +1,78 @@
 <?php
 
 /**
- * The signed-in workspace navigation. Every entry is a real page, so a section is
- * opened rather than scrolled to. The stylesheet collapses these labels to their
- * first character on narrow screens, so each one begins with its own glyph.
+ * The signed-in workspace shell: a top bar for narrow screens, and the sidebar.
+ *
+ * Every entry is a real page, so a section is opened rather than scrolled to. On a
+ * narrow screen the sidebar becomes a drawer opened from the top bar; it is never
+ * simply hidden, because then there is no way to move around at all.
+ *
+ * The switcher at the top says whose workspace is on screen. For a platform owner
+ * it is a menu of merchants; for everyone else it is just their business name.
+ * workspace.js fills it in once it knows who is signed in.
  */
 function portalNav(string $current): string
 {
-    $groups = [
-        [
-            ['/dashboard', '⌂', 'Overview'],
-            ['/dashboard/payments', '↙', 'Payments'],
-            ['/dashboard/devices', '▣', 'Listener devices'],
-            ['/dashboard/developers', '⌘', 'Developers'],
-            ['/dashboard/merchants', '◈', 'Merchants', 'owner'],
-            ['/dashboard/account', '☰', 'Account'],
-        ],
-        [
-            ['/sandbox', '◇', 'Developer sandbox'],
-            ['/resources', '▤', 'Resources'],
-            ['/docs', '↗', 'Documentation'],
-        ],
+    $icon = static function (string $paths): string {
+        return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $paths . '</svg>';
+    };
+    $icons = [
+        'home' => '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+        'payments' => '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+        'devices' => '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+        'code' => '<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>',
+        'merchants' => '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
+        'account' => '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+        'sandbox' => '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/>',
+        'resources' => '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 0 2 2h13"/>',
+        'docs' => '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+        'menu' => '<path d="M4 7h16M4 12h16M4 17h16"/>',
+        'chevron' => '<path d="m8 10 4 4 4-4"/>',
+        'signout' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
     ];
-    $html = '<aside class="portal-nav"><a class="brand" href="/"><img class="brand-mark" src="/assets/logo-mark.svg" width="34" height="34" alt=""><span>ISP Billing<span class="brand-pay">Pay</span></span></a>';
-    foreach ($groups as $index => $group) {
-        $html .= '<nav' . ($index ? ' class="portal-nav-aux"' : '') . '>';
-        foreach ($group as $item) {
+    $groups = [
+        ['', [
+            ['/dashboard', 'home', 'Home'],
+            ['/dashboard/payments', 'payments', 'Payments'],
+            ['/dashboard/devices', 'devices', 'Listener devices'],
+        ]],
+        ['Build', [
+            ['/dashboard/developers', 'code', 'API keys and webhooks'],
+            ['/sandbox', 'sandbox', 'Sandbox'],
+            ['/docs', 'docs', 'Documentation'],
+            ['/resources', 'resources', 'Resources'],
+        ]],
+        ['Manage', [
+            ['/dashboard/merchants', 'merchants', 'Merchants', 'owner'],
+            ['/dashboard/account', 'account', 'Account'],
+        ]],
+    ];
+    $brand = '<img class="brand-mark" src="/assets/logo-mark.svg" width="30" height="30" alt=""><span>ISP Billing<span class="brand-pay">Pay</span></span>';
+
+    // Narrow screens: a bar with the menu button. The sidebar below becomes its drawer.
+    $html = '<header class="portal-bar"><button type="button" class="portal-menu" id="portal-menu" aria-controls="portal-nav" aria-expanded="false" aria-label="Open menu">' . $icon($icons['menu']) . '</button>'
+        . '<a class="brand" href="/dashboard">' . $brand . '</a><button type="button" class="portal-bar-scope" id="portal-bar-scope" aria-label="Open menu to switch view"></button></header>'
+        . '<div class="portal-scrim" id="portal-scrim" hidden></div>';
+
+    $html .= '<aside class="portal-nav" id="portal-nav" aria-label="Workspace"><a class="brand" href="/dashboard">' . $brand . '</a>'
+        . '<div class="scope-switch" id="scope-switch"><button type="button" class="scope-current" id="scope-current" aria-haspopup="true" aria-expanded="false" disabled>'
+        . '<span class="scope-avatar" id="scope-avatar"></span><span class="scope-text"><small id="scope-kind">WORKSPACE</small><b id="scope-name">Loading…</b></span>'
+        . '<span class="scope-chevron" id="scope-chevron" hidden>' . $icon($icons['chevron']) . '</span></button>'
+        . '<div class="scope-menu" id="scope-menu" role="menu" hidden></div></div>';
+    foreach ($groups as [$heading, $items]) {
+        $links = '';
+        foreach ($items as $item) {
             [$href, $glyph, $label] = $item;
             $role = $item[3] ?? '';
             // An entry for one role only stays hidden until the workspace confirms the role.
             $attributes = $role !== '' ? ' data-role="' . $role . '" hidden' : '';
             $attributes .= $href === $current ? ' class="active" aria-current="page"' : '';
-            $html .= '<a' . $attributes . ' href="' . $href . '">' . $glyph . ' ' . $label . '</a>';
+            $links .= '<a' . $attributes . ' href="' . $href . '">' . $icon($icons[$glyph]) . '<span>' . $label . '</span></a>';
         }
-        $html .= '</nav>';
+        $html .= '<nav>' . ($heading !== '' ? '<p class="nav-heading">' . $heading . '</p>' : '') . $links . '</nav>';
     }
-    return $html . '<button id="portal-logout" type="button">Sign out</button></aside>';
+    return $html . '<div class="portal-user"><span class="user-avatar" id="user-avatar"></span><span class="user-text"><b id="user-email"></b><small id="user-role"></small></span>'
+        . '<button id="portal-logout" type="button" title="Sign out" aria-label="Sign out">' . $icon($icons['signout']) . '</button></div></aside>';
 }
 
 /** Public pages are deliberately independent of database availability. */

@@ -209,11 +209,114 @@
         link.hidden = link.dataset.role !== data.user.role;
       });
       viewingBanner(data.acting_as);
+      shell(data);
       return data;
     } catch (e) {
       problem(e.message);
       return null;
     }
+  }
+
+  // ------------------------------------------------------------ the drawer
+  // On a narrow screen the sidebar slides in from the menu button in the top bar.
+  (() => {
+    const menu = el('portal-menu');
+    const scrim = el('portal-scrim');
+    if (!menu || !scrim) return;
+    const set = open => {
+      document.body.classList.toggle('nav-open', open);
+      menu.setAttribute('aria-expanded', open ? 'true' : 'false');
+      scrim.hidden = !open;
+    };
+    menu.addEventListener('click', () => set(!document.body.classList.contains('nav-open')));
+    scrim.addEventListener('click', () => set(false));
+    // The name in the bar opens the drawer too, since the view switch lives at its top.
+    const scopeButton = el('portal-bar-scope');
+    if (scopeButton) scopeButton.addEventListener('click', () => set(true));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') set(false); });
+  })();
+
+  /**
+   * Fills in the parts of the sidebar that depend on who is signed in: the person
+   * at the bottom, and at the top whose workspace is on screen. For a platform
+   * owner that top block is the switch between the whole gateway and one merchant.
+   */
+  let shellDone = false;
+  async function shell(data) {
+    if (shellDone || !el('scope-switch')) return;
+    shellDone = true;
+    const initial = text => (String(text || '?').trim().charAt(0) || '?').toUpperCase();
+    el('user-email').textContent = data.user.email;
+    el('user-role').textContent = data.user.role === 'owner' ? 'Platform owner' : titleCase(data.user.role);
+    el('user-avatar').textContent = initial(data.user.email);
+
+    const owner = data.user.role === 'owner';
+    const name = data.acting_as ? data.acting_as.name
+      : owner ? 'All merchants'
+      : data.merchant ? data.merchant.name : 'Developer account';
+    el('scope-name').textContent = name;
+    el('scope-kind').textContent = data.acting_as ? 'VIEWING AS' : owner ? 'PLATFORM OWNER' : 'WORKSPACE';
+    el('scope-avatar').textContent = owner && !data.acting_as ? '∗' : initial(name);
+    el('scope-switch').classList.toggle('acting', !!data.acting_as);
+    const label = document.querySelector('.portal-top .micro-label');
+    if (label && owner && !data.acting_as) label.textContent = 'PLATFORM OWNER';
+    const bar = el('portal-bar-scope');
+    if (bar) bar.textContent = name;
+    if (!owner) return;
+
+    // The owner's switch: the whole gateway, or any one merchant as they see it.
+    const button = el('scope-current');
+    const menu = el('scope-menu');
+    el('scope-chevron').hidden = false;
+    button.disabled = false;
+    let merchants = [];
+    try {
+      merchants = (await api('/v1/portal/merchants')).merchants;
+    } catch (_) {}
+    const entry = (label, detail, id, current) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.setAttribute('role', 'menuitem');
+      item.className = 'scope-item' + (current ? ' current' : '');
+      const avatar = document.createElement('span');
+      avatar.className = 'scope-avatar';
+      avatar.textContent = id ? initial(label) : '∗';
+      const text = document.createElement('span');
+      text.className = 'scope-text';
+      const strong = document.createElement('b');
+      strong.textContent = label;
+      const small = document.createElement('small');
+      small.textContent = detail;
+      text.append(strong, small);
+      item.append(avatar, text);
+      item.onclick = async () => {
+        if (current) { close(); return; }
+        item.disabled = true;
+        try { await viewAs(id); } catch (e) { problem(e.message); item.disabled = false; }
+      };
+      return item;
+    };
+    const heading = document.createElement('p');
+    heading.className = 'scope-heading';
+    heading.textContent = 'Switch view';
+    menu.append(heading, entry('All merchants', 'The whole gateway, as its owner', '', !data.acting_as));
+    merchants.forEach(merchant => menu.append(entry(merchant.name,
+      titleCase(merchant.country) + ' · ' + merchant.currency + ' · as this merchant sees it',
+      merchant.id, !!data.acting_as && data.acting_as.id === merchant.id)));
+    const add = document.createElement('a');
+    add.className = 'scope-add';
+    add.href = '/dashboard/merchants';
+    add.textContent = merchants.length ? '+ Add another merchant' : 'No merchants yet · add your first one →';
+    menu.append(add);
+
+    const close = () => { menu.hidden = true; button.setAttribute('aria-expanded', 'false'); };
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      menu.hidden = !menu.hidden;
+      button.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+    });
+    document.addEventListener('click', event => { if (!menu.contains(event.target)) close(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
   }
 
   /**
@@ -321,9 +424,12 @@
    */
   function columnChart(target, series, currency) {
     target.replaceChildren();
-    const width = 960;
-    const height = 260;
-    const padLeft = 58;
+    // Drawn at the width it is shown at, not scaled down from a desktop size, so
+    // the axis text is as readable on a phone as it is on a wide screen.
+    const width = Math.max(300, Math.round(target.clientWidth || 960));
+    const narrow = width < 560;
+    const height = narrow ? 220 : 260;
+    const padLeft = narrow ? 30 : 58;
     const padRight = 12;
     const padTop = 14;
     const padBottom = 30;
@@ -332,7 +438,7 @@
     const peak = Math.max(1, ...series.map(point => point.count));
     // A rounded ceiling keeps the gridline labels whole numbers.
     const step = Math.max(1, Math.ceil(peak / 4));
-    const ceiling = step * 4;
+    const ceiling = step * Math.max(1, Math.ceil(peak / step));
     const scale = value => plotHeight - (value / ceiling) * plotHeight;
 
     const svg = svgEl('svg', {viewBox: '0 0 ' + width + ' ' + height, class: 'chart', role: 'img',
@@ -348,7 +454,7 @@
     }
 
     const slot = plotWidth / series.length;
-    const barWidth = Math.max(2, Math.min(26, slot - 4));
+    const barWidth = Math.max(2, Math.min(26, slot - (narrow ? 2 : 4)));
     const readable = day => new Date(day + 'T00:00:00Z').toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
     series.forEach((point, index) => {
       const x = index * slot + (slot - barWidth) / 2;
@@ -373,10 +479,11 @@
       plot.append(group);
     });
 
-    // Only a few dates are labelled, so they stay legible at every range.
-    const every = Math.ceil(series.length / 8);
+    // Only as many dates as fit are labelled, counted back from today so the
+    // newest day is always named and two labels never land on top of each other.
+    const every = Math.max(1, Math.ceil(series.length / Math.max(2, Math.floor(plotWidth / 78))));
     series.forEach((point, index) => {
-      if (index % every && index !== series.length - 1) return;
+      if ((series.length - 1 - index) % every) return;
       const label = svgEl('text', {x: index * slot + slot / 2, y: plotHeight + 20, class: 'axis', 'text-anchor': 'middle'});
       label.textContent = readable(point.day);
       plot.append(label);
@@ -431,8 +538,7 @@
     }
     // An owner looking at one merchant reads the page as that merchant would.
     const owner = data.user.role === 'owner' && !data.acting_as;
-    el('portal-user').textContent = data.user.email;
-    viewingBanner(data.acting_as);
+    identify();
     el('portal-greeting').textContent = owner ? 'Gateway overview' : (data.merchant && data.merchant.name ? data.merchant.name : 'Overview');
     el('metric-total').textContent = data.totals.length === 1
       ? money(data.totals[0].total, data.totals[0].currency)
@@ -543,11 +649,6 @@
     el('portal-loading').hidden = true;
     el('portal-content').hidden = false;
 
-    // Owners get the merchants entry in the navigation.
-    document.querySelectorAll('.portal-nav a[data-role]').forEach(link => {
-      link.hidden = link.dataset.role !== data.user.role;
-    });
-
     // The charts load after the page is usable, so a slow aggregate never holds it up.
     const range = document.querySelector('.chart-range');
     async function drawCharts(days) {
@@ -563,13 +664,24 @@
         problem(e.message);
       }
     }
+    let days = 30;
     range.addEventListener('click', event => {
       const button = event.target.closest('button[data-days]');
       if (!button) return;
       range.querySelectorAll('button').forEach(other => other.classList.toggle('active', other === button));
-      drawCharts(button.dataset.days);
+      days = button.dataset.days;
+      drawCharts(days);
     });
-    drawCharts(30);
+    // Turning a phone, or resizing the window, changes the width the chart is drawn for.
+    let resizing;
+    let lastWidth = window.innerWidth;
+    window.addEventListener('resize', () => {
+      if (window.innerWidth === lastWidth) return;
+      lastWidth = window.innerWidth;
+      clearTimeout(resizing);
+      resizing = setTimeout(() => drawCharts(days), 200);
+    });
+    drawCharts(days);
   };
 
   // --------------------------------------------------------------- merchants
@@ -776,6 +888,7 @@
 
     const columns = [
       {label: 'Listener', key: 'label'},
+      ...(scope.owner ? [{label: 'Merchant', key: 'merchant'}] : []),
       {label: 'Network', key: 'provider_label'},
       {label: 'Receives on', cell: row => row.receiving_number + ' · ' + row.receiving_name},
       {
@@ -831,7 +944,7 @@
         'Issue new key');
       if (!password) return;
       try {
-        const data = await post('/v1/portal/devices/rotate', {device_id: device.id, password, merchant_id: scope.id});
+        const data = await post('/v1/portal/devices/rotate', {device_id: device.id, password, merchant_id: device.merchant_id || scope.id});
         reveal('device-key-reveal', 'device-key-value', data.device_key);
         list();
       } catch (e) {
@@ -845,7 +958,7 @@
         'Revoke listener');
       if (!password) return;
       try {
-        await post('/v1/portal/devices/revoke', {device_id: device.id, password, merchant_id: scope.id});
+        await post('/v1/portal/devices/revoke', {device_id: device.id, password, merchant_id: device.merchant_id || scope.id});
         list();
       } catch (e) {
         problem(e.message);
@@ -893,6 +1006,7 @@
 
     const keyColumns = [
       {label: 'Key', key: 'hint'},
+      ...(scope.owner ? [{label: 'Merchant', key: 'merchant'}] : []),
       {label: 'State', cell: row => chip(titleCase(row.status), row.status === 'active' ? 'good' : 'bad')},
       {label: 'Created', cell: row => when(row.created_at)},
       {label: 'Last used', cell: row => when(row.last_used_at)},
@@ -910,7 +1024,7 @@
               'Revoke key');
             if (!password) return;
             try {
-              await post('/v1/portal/keys/revoke', {hint: row.hint, password, merchant_id: scope.id});
+              await post('/v1/portal/keys/revoke', {hint: row.hint, password, merchant_id: row.merchant_id || scope.id});
               load();
             } catch (e) {
               problem(e.message);

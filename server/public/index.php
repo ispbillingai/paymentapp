@@ -104,7 +104,12 @@ function portalScope(array $user)
 
 function portalCookie($token, $expires)
 {
-    setcookie('isp_pay_session', $token, ['expires' => $expires, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'httponly' => true, 'samesite' => 'Lax']);
+    $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    setcookie('isp_pay_session', $token, ['expires' => $expires, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
+    // A readable marker, so public pages can offer "Dashboard" instead of "Sign in".
+    // It carries no authority: it is only ever a hint, and the session cookie above,
+    // which scripts cannot read, is still what every request is checked against.
+    setcookie('isp_pay_in', $token === '' ? '' : '1', ['expires' => $expires, 'path' => '/', 'secure' => $secure, 'httponly' => false, 'samesite' => 'Lax']);
 }
 
 /** A result from Gateway is either data or ['error' => [...]]. */
@@ -174,9 +179,12 @@ try {
         $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
         $where=portalScope($user);
         // deviceOut is what the API returns everywhere else, so the workspace shows the same fields.
-        out(['devices'=>array_map(['Gateway','deviceOut'],Db::rows("SELECT * FROM devices WHERE $where ORDER BY id DESC LIMIT 50")),
+        // Each row names its merchant, so a view across every merchant still says whose it is.
+        $names=[]; $publicIds=[]; foreach(Db::rows("SELECT id,public_id,name FROM merchants") as $row){ $names[(int)$row['id']]=$row['name']; $publicIds[(int)$row['id']]=$row['public_id']; }
+        $devices=array_map(static function($d) use ($names,$publicIds){ return Gateway::deviceOut($d)+['merchant'=>$names[(int)$d['merchant_id']]??'','merchant_id'=>$publicIds[(int)$d['merchant_id']]??'']; },Db::rows("SELECT * FROM devices WHERE $where ORDER BY id DESC LIMIT 50"));
+        out(['devices'=>$devices,
           'webhooks'=>Db::rows("SELECT event_id,type,status,attempts,last_code,created_at FROM webhook_deliveries WHERE $where ORDER BY id DESC LIMIT 30"),
-          'keys'=>Db::rows("SELECT hint,status,last_used_at,created_at FROM api_keys WHERE $where ORDER BY id DESC LIMIT 30")]);
+          'keys'=>array_map(static function($k) use ($names,$publicIds){ $id=(int)$k['merchant_id']; $k['merchant']=$names[$id]??''; $k['merchant_id']=$publicIds[$id]??''; return $k; },Db::rows("SELECT merchant_id,hint,status,last_used_at,created_at FROM api_keys WHERE $where ORDER BY id DESC LIMIT 30"))]);
     }
     if ($path === '/v1/portal/payments' && $method === 'GET') {
         $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);

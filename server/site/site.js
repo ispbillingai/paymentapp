@@ -2,6 +2,15 @@
 (() => {
   const toggle = document.querySelector('.nav-toggle');
   const nav = document.querySelector('.main-navigation');
+
+  // Someone already signed in is offered their dashboard, not another sign-in.
+  // The marker is only a hint; the dashboard itself still checks the real session.
+  if (/(?:^|;\s*)isp_pay_in=1(?:;|$)/.test(document.cookie)) {
+    const signIn = document.querySelector('.main-navigation .nav-support');
+    if (signIn) { signIn.textContent = 'Dashboard'; signIn.href = '/dashboard'; }
+    const create = document.querySelector('.main-navigation a[data-nav="signup"]');
+    if (create) { create.textContent = 'Open dashboard →'; create.href = '/dashboard'; }
+  }
   function closeMenu() {
     if (!toggle || !nav) return;
     toggle.setAttribute('aria-expanded', 'false');
