@@ -250,3 +250,14 @@ button.scope-add.first{border-top:0}
 .portal-dialog .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 #my-merchant .panel-heading{gap:20px;flex-wrap:wrap}
 #my-merchant .panel-heading .button{flex:0 0 auto}
+/* one reported message: as it arrived, then what was read out of it */
+.message-card{border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:12px;background:var(--white)}
+.message-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.message-head b{font-size:13px}
+.message-head small{color:var(--muted);font-size:11px;margin-right:auto}
+.message-body{margin:12px 0 0;padding:12px 14px;background:var(--soft);border-radius:8px;font:13px/1.7 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
+.message-read{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:12px}
+.message-read span{display:flex;flex-direction:column}
+.message-read small{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.message-read b{font-size:13px}
+.message-actions{margin-top:12px}

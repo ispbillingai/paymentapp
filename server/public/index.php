@@ -251,6 +251,31 @@ try {
              'keys'=>(int)Db::row("SELECT COUNT(*) c FROM api_keys WHERE $where AND status='active'")['c']], 'payments'=>$payments]);
     }
 
+    /**
+     * Every message the listeners reported, newest first: the text exactly as it
+     * arrived, and what the gateway read out of it. This is what makes a customer's
+     * "I paid and nothing happened" answerable, and what a new network's format is
+     * worked out from.
+     */
+    if ($path === '/v1/portal/messages' && $method === 'GET') {
+        $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
+        $where=portalScope($user); $args=[];
+        $outcome=(string)($_GET['outcome']??'');
+        if($outcome==='unread'){ $where.=" AND outcome NOT IN ('recorded','duplicate','reversal')"; }
+        elseif(in_array($outcome,['recorded','duplicate','reversal','unknown_sender','not_a_payment'],true)){ $where.=' AND outcome=?'; $args[]=$outcome; }
+        $q=trim((string)($_GET['q']??''));
+        if($q!==''){
+            $like='%'.str_replace(['\\','%','_'],['\\\\','\%','\_'],substr($q,0,60)).'%';
+            $where.=' AND (sender LIKE ? OR body LIKE ? OR read_name LIKE ? OR read_trx LIKE ?)';
+            array_push($args,$like,$like,$like,$like);
+        }
+        $before=max(0,(int)($_GET['before']??0)); if($before){$where.=' AND id<?';$args[]=$before;}
+        $rows=Db::rows("SELECT id,sender,body,sms_time,received_at,outcome,payment_id,read_trx,read_amount,read_currency,read_name,read_msisdn
+            FROM device_messages WHERE $where ORDER BY id DESC LIMIT 51",$args);
+        $more=count($rows)>50; $rows=array_slice($rows,0,50);
+        out(['messages'=>$rows,'next_before'=>$more?(int)end($rows)['id']:null]);
+    }
+
     if ($path === '/v1/portal/operations' && $method === 'GET') {
         $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
         $where=portalScope($user);
@@ -653,7 +678,9 @@ try {
         $sent = (float) ($in['sentStamp'] ?? 0);
         $sent = $sent > 9999999999 ? $sent / 1000 : $sent;
         $sent = ($sent > 1500000000 && $sent < time() + 86400) ? (int) $sent : null;
-        $result = Gateway::ingest($device, trim((string) ($in['from'] ?? '')), $text, $sent);
+        $from = trim((string) ($in['from'] ?? ''));
+        $result = Gateway::ingest($device, $from, $text, $sent);
+        Gateway::fileMessage($device, $from, $text, $sent, $result);
         // Recorded or not, the message is settled and the phone should stop holding it.
         // ok says that; result and reason say what actually became of it.
         $reasons = [

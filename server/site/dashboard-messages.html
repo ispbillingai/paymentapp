@@ -1,0 +1,9 @@
+<section class="portal-main"><header class="portal-top"><div><p class="micro-label">MERCHANT WORKSPACE</p><h1>Messages</h1></div><span id="portal-user"></span></header>
+<div class="scope-picker" id="scope-picker" hidden></div>
+
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Everything your listeners reported</h2><p>The text exactly as it arrived, and what was read out of it. A message that could not be read is kept here too, which is how a new network's wording gets worked out and how "I paid and nothing happened" gets answered.</p></div><div class="button-row"><label class="visually-hidden" for="messages-filter">Show</label><select id="messages-filter"><option value="">All messages</option><option value="unread">Could not be read</option><option value="recorded">Became a payment</option><option value="duplicate">Already seen</option><option value="not_a_payment">Not a payment</option><option value="unknown_sender">Sender not accepted</option></select><label class="visually-hidden" for="messages-search">Search messages</label><input type="search" id="messages-search" class="portal-search" placeholder="Search sender, text or name" autocomplete="off"><button id="messages-refresh" class="copy-button" type="button">Refresh</button></div></div>
+<div id="message-records"></div>
+<div class="button-row"><button id="messages-next" type="button" class="button button-outline button-small" hidden>Older messages →</button></div>
+</section>
+
+<p id="operations-error" class="form-error" role="alert" hidden></p></section>

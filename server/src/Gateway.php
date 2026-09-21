@@ -288,8 +288,47 @@ class Gateway
     // ---------------------------------------------------------------
 
     /** Returns ignored, duplicate, recorded or reversal. Private messages are dropped, never stored. */
+    /**
+     * What the last ingest() read out of the message, and which payment it became.
+     * Held here so the message can be filed next to the reading without changing
+     * what ingest returns, which the tests and the phone both rely on.
+     */
+    public static $lastRead = [];
+
+    /**
+     * Files a reported message, whatever became of it. A message the gateway could
+     * not read used to leave no trace, so nobody could see what a network actually
+     * sends, and "I paid and nothing happened" had no answer.
+     */
+    public static function fileMessage(array $device, $sender, $body, $sentAt, $outcome)
+    {
+        $read = self::$lastRead;
+        try {
+            Db::run(
+                "INSERT INTO device_messages (merchant_id, device_id, sender, body, sms_time, received_at, outcome, payment_id,
+                    read_trx, read_amount, read_currency, read_name, read_msisdn)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [(int) $device['merchant_id'], (int) $device['id'], substr((string) $sender, 0, 100), (string) $body,
+                 $sentAt ? date('Y-m-d H:i:s', (int) $sentAt) : null, self::now(), substr((string) $outcome, 0, 20),
+                 (int) ($read['payment_id'] ?? 0), substr((string) ($read['trx_id'] ?? ''), 0, 64), (float) ($read['amount'] ?? 0),
+                 substr((string) ($read['currency'] ?? ''), 0, 5), substr((string) ($read['payer_name'] ?? ''), 0, 100),
+                 substr((string) ($read['payer_msisdn'] ?? ''), 0, 20)]
+            );
+        } catch (Throwable $e) {
+            // Filing a message must never cost a payment. The payment is already
+            // recorded by this point; losing the copy of the text is the lesser harm.
+            error_log('device_messages: ' . $e->getMessage());
+        }
+        self::$lastRead = [];
+        // Old messages hold payer names and numbers, so they do not accumulate for ever.
+        if (random_int(1, 200) === 1) {
+            Db::run("DELETE FROM device_messages WHERE received_at < ?", [date('Y-m-d H:i:s', time() - 90 * 86400)]);
+        }
+    }
+
     public static function ingest(array $device, $sender, $body, $sentAt = null)
     {
+        self::$lastRead = [];
         if (!is_string($body) || strlen($body) > 16000 || !is_string($sender) || strlen($sender) > 100) {
             return 'ignored';
         }
@@ -307,6 +346,7 @@ class Gateway
             return 'unknown_sender';
         }
         $p = Parser::parseMessage($provider, $body, (string) ($device['merchant_currency'] ?? ''));
+        self::$lastRead = $p;
         if ($p['kind'] === 'other') {
             return 'not_a_payment';
         }
@@ -379,6 +419,8 @@ class Gateway
             throw $e;
         }
         $id = Db::lastId();
+        // So the filed message can point at the payment it became.
+        self::$lastRead['payment_id'] = $id;
         if ($p['kind'] !== 'credit' || !self::matchPayment($id)) {
             $pay = Db::row("SELECT * FROM payments WHERE id = ?", [$id]);
             self::emit($mid, 'payment.unmatched', [

@@ -107,6 +107,32 @@ CREATE TABLE IF NOT EXISTS payments (
     KEY idx_pay_trxid (merchant_id, trx_id, kind, received_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Every message a listener reports, whether or not it became a payment.
+-- Without this a message the gateway could not read left no trace at all, so
+-- nobody could see what a network actually sends. It is also what makes a
+-- customer's "I paid and nothing happened" answerable.
+CREATE TABLE IF NOT EXISTS device_messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    merchant_id INT NOT NULL,
+    device_id INT NOT NULL DEFAULT 0,
+    sender VARCHAR(100) NOT NULL DEFAULT '',
+    body TEXT,
+    sms_time DATETIME NULL,
+    received_at DATETIME NOT NULL,
+    -- recorded, duplicate, reversal, unknown_sender, not_a_payment, ignored
+    outcome VARCHAR(20) NOT NULL DEFAULT '',
+    payment_id INT NOT NULL DEFAULT 0,
+    -- what the gateway managed to read out of it, for comparing against the text
+    read_trx VARCHAR(64) NOT NULL DEFAULT '',
+    read_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    read_currency VARCHAR(5) NOT NULL DEFAULT '',
+    read_name VARCHAR(100) NOT NULL DEFAULT '',
+    read_msisdn VARCHAR(20) NOT NULL DEFAULT '',
+    KEY idx_msg_feed (merchant_id, id),
+    KEY idx_msg_outcome (merchant_id, outcome, id),
+    KEY idx_msg_age (received_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS payers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     merchant_id INT NOT NULL,

@@ -953,6 +953,119 @@
     load();
   };
 
+  // --------------------------------------------------------------- messages
+  pages['dashboard-messages'] = async () => {
+    const account = await identify();
+    await merchantScope(account, 'scope-picker', 'No merchants yet. Add one under Merchants first.');
+    let next = null;
+
+    const tone = outcome => outcome === 'recorded' ? 'good'
+      : outcome === 'duplicate' || outcome === 'reversal' ? 'warn' : 'bad';
+    const wording = {
+      recorded: 'Became a payment',
+      duplicate: 'Already seen',
+      reversal: 'Reversal',
+      unknown_sender: 'Sender not accepted',
+      not_a_payment: 'Not a payment',
+      ignored: 'Could not be read',
+    };
+
+    /** One message: the text as it arrived, then what was read out of it. */
+    function card(row) {
+      const item = document.createElement('article');
+      item.className = 'message-card';
+
+      const head = document.createElement('div');
+      head.className = 'message-head';
+      const who = document.createElement('b');
+      who.textContent = row.sender || 'Unknown sender';
+      const at = document.createElement('small');
+      at.textContent = when(row.received_at);
+      head.append(who, at, chip(wording[row.outcome] || titleCase(row.outcome), tone(row.outcome)));
+      item.append(head);
+
+      // The message itself, unaltered. Never as markup: this text came from outside.
+      const body = document.createElement('pre');
+      body.className = 'message-body';
+      body.textContent = row.body || '';
+      item.append(body);
+
+      const read = [];
+      if (row.read_trx) read.push(['Transaction', row.read_trx]);
+      if (Number(row.read_amount) > 0) read.push(['Amount', money(row.read_amount, row.read_currency)]);
+      if (row.read_name) read.push(['Payer', row.read_name]);
+      if (row.read_msisdn) read.push(['Number', row.read_msisdn]);
+      const foot = document.createElement('div');
+      foot.className = 'message-read';
+      if (!read.length) {
+        const none = document.createElement('small');
+        none.textContent = 'Nothing could be read out of this message.';
+        foot.append(none);
+      } else {
+        read.forEach(([label, value]) => {
+          const pair = document.createElement('span');
+          const key = document.createElement('small');
+          key.textContent = label;
+          const val = document.createElement('b');
+          val.textContent = value;
+          pair.append(key, val);
+          foot.append(pair);
+        });
+      }
+      item.append(foot);
+
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'copy-button';
+      copy.textContent = 'Copy message';
+      copy.onclick = () => {
+        const done = () => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy message'; }, 1600); };
+        if (navigator.clipboard) navigator.clipboard.writeText(row.body || '').then(done, () => {});
+        else done();
+      };
+      const actions = document.createElement('div');
+      actions.className = 'message-actions';
+      actions.append(copy);
+      item.append(actions);
+      return item;
+    }
+
+    async function load(before) {
+      try {
+        const query = new URLSearchParams();
+        if (el('messages-filter').value) query.set('outcome', el('messages-filter').value);
+        if (el('messages-search').value.trim()) query.set('q', el('messages-search').value.trim());
+        if (before) query.set('before', before);
+        const data = await api('/v1/portal/messages?' + query.toString());
+        next = data.next_before;
+        const target = el('message-records');
+        if (!before) target.replaceChildren();
+        if (!data.messages.length && !before) {
+          const note = document.createElement('div');
+          note.className = 'portal-empty';
+          const strong = document.createElement('strong');
+          strong.textContent = 'No messages yet';
+          const text = document.createElement('p');
+          text.textContent = 'Everything a listener phone reports appears here, whether or not it became a payment.';
+          note.append(strong, text);
+          target.append(note);
+        }
+        data.messages.forEach(row => target.append(card(row)));
+        el('messages-next').hidden = !next;
+        problem('');
+      } catch (e) {
+        problem(e.message);
+      }
+    }
+
+    el('messages-filter').onchange = () => load();
+    el('messages-refresh').onclick = () => load();
+    el('messages-next').onclick = () => load(next);
+    let typing;
+    el('messages-search').oninput = () => { clearTimeout(typing); typing = setTimeout(() => load(), 250); };
+    load();
+  };
+
   // ---------------------------------------------------------------- devices
   pages['dashboard-devices'] = async () => {
     const account = await identify();

@@ -26,6 +26,7 @@ function portalNav(string $current): string
         'sandbox' => '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/>',
         'resources' => '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 0 2 2h13"/>',
         'docs' => '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+        'inbox' => '<path d="M3 13h4l2 3h6l2-3h4"/><path d="M5 5h14l2 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5z"/>',
         'menu' => '<path d="M4 7h16M4 12h16M4 17h16"/>',
         'chevron' => '<path d="m8 10 4 4 4-4"/>',
         'signout' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
@@ -34,6 +35,7 @@ function portalNav(string $current): string
         ['', [
             ['/dashboard', 'home', 'Home'],
             ['/dashboard/payments', 'payments', 'Payments'],
+            ['/dashboard/messages', 'inbox', 'Messages'],
             ['/dashboard/devices', 'devices', 'Listener devices'],
         ]],
         ['Build', [
@@ -168,6 +170,7 @@ function renderPublicSite(string $path, string $method): void
         '/login' => ['login', 'Merchant sign in', 'Sign in to your ISP Billing Pay merchant workspace.'],
         '/dashboard' => ['dashboard', 'Merchant workspace', 'Review gateway payments, channels, devices and integration health.'],
         '/dashboard/payments' => ['dashboard-payments', 'Payments', 'Search, filter and export every payment recorded against your merchant account.'],
+        '/dashboard/messages' => ['dashboard-messages', 'Messages', 'Every message your listener phones reported, as it arrived, with what was read out of it.'],
         '/dashboard/devices' => ['dashboard-devices', 'Listener devices', 'Add a listener phone, rotate its key and watch whether it is reporting.'],
         '/dashboard/developers' => ['dashboard-developers', 'Developers', 'Create and revoke live API keys, set your webhook address and review deliveries.'],
         '/dashboard/account' => ['dashboard-account', 'Account', 'Your sign-in details, merchant profile and receiving account.'],
