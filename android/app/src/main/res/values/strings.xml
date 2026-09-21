@@ -13,8 +13,8 @@
     <string name="hint_key">Paste your sk_live_ account key</string>
     <string name="label_senders">Mobile money sender names</string>
     <string name="help_pick_networks">Tick the networks this phone receives payments on.</string>
-    <string name="label_sender_extra">Another sender name</string>
-    <string name="hint_sender_extra">Type it exactly as your phone shows it</string>
+    <string name="label_sender_extra">Sender names you added</string>
+    <string name="hint_sender_extra">e.g. MPESA</string>
     <string name="update_heading">App version</string>
     <string name="update_current">Version %1$s. Checking for a newer one…</string>
     <string name="update_latest">Version %1$s. This is the newest version.</string>
@@ -69,6 +69,13 @@
     <string name="settings_open">Edit connection settings</string>
     <string name="settings_close">Hide connection settings</string>
     <string name="show_pairing">Show key</string>
+    <string name="add_sender">Add name</string>
+    <string name="remove_sender">Remove</string>
+    <string name="no_added_senders">No names added yet. Type one above, exactly as your phone shows it, then tap Add name.</string>
+    <string name="sender_added">%1$s added. Save to apply it.</string>
+    <string name="sender_already">%1$s is already in the list.</string>
+    <string name="sender_is_network">%1$s belongs to %2$s, which is now ticked for you.</string>
+    <string name="sender_type_first">Type the sender name first, exactly as your phone shows it.</string>
     <string name="sender_folded">Already covered, so ticked for you: %1$s</string>
     <string name="popup_tick">✓</string>
     <string name="popup_cross">!</string>

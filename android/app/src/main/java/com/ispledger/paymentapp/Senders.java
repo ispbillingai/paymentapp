@@ -26,7 +26,6 @@ final class Senders {
             {"Telecel Cash", "TelecelCash, T-Cash"},
             {"Vodafone Cash", "VodaCash"},
             {"AT Money", "ATMoney"},
-            {"M-Pesa", "MPESA, M-PESA"},
             {"Orange Money", "OrangeMoney, Orange Money"},
             {"Moov Money", "MoovMoney, Moov Money"},
             {"Wave", "Wave"},

@@ -32,7 +32,9 @@ public class MainActivity extends Activity {
     private TextView status, activity;
     private Button save, allowSms, allowBattery, allowNotifications;
     private TextView title, badge, queued, lastContact, smsState, batteryState, notificationState;
-    private LinearLayout activityRows, senderBoxes;
+    private LinearLayout activityRows, senderBoxes, addedSenders;
+    /** Sender names the owner typed in, in the order they added them. */
+    private final java.util.List<String> added = new java.util.ArrayList<>();
     private TextView pairFields;
     private CheckBox[] networkBoxes;
     private TextView updateState, updateNotes;
@@ -134,7 +136,15 @@ public class MainActivity extends Activity {
             networkBoxes[i] = box;
             senderBoxes.addView(box);
         }
-        senders.setText(Senders.extras(saved));
+        // Names the owner added themselves are shown as a list, each removable, so
+     // adding one is something they can see rather than hope happened.
+        addedSenders = findViewById(R.id.added_senders);
+        for (String name : Senders.extras(saved).split(",")) {
+            if (!name.trim().isEmpty()) added.add(name.trim());
+        }
+        drawAddedSenders();
+        findViewById(R.id.add_sender).setOnClickListener(v -> addTypedSender());
+        senders.setOnEditorActionListener((view, action, event) -> { addTypedSender(); return true; });
 
         updateState = findViewById(R.id.update_state);
         updateNotes = findViewById(R.id.update_notes);
@@ -162,6 +172,78 @@ public class MainActivity extends Activity {
                 askBattery();
             }
         });
+    }
+
+    /** Takes what is in the field and puts it in the list, saying what happened. */
+    private void addTypedSender() {
+        String name = senders.getText().toString().trim().replace(",", " ").trim();
+        if (name.isEmpty()) {
+            dashboard.connectionFeedback(getString(R.string.sender_type_first));
+            senders.requestFocus();
+            return;
+        }
+        int network = Senders.networkFor(name);
+        if (network >= 0) {
+            // A listed network already covers it, so tick that instead of adding a
+            // duplicate the owner would then have to keep in step by hand.
+            networkBoxes[network].setChecked(true);
+            senders.setText("");
+            dashboard.connectionFeedback(getString(R.string.sender_is_network, name, Senders.NETWORKS[network][0]));
+            return;
+        }
+        for (String existing : added) {
+            if (Senders.normalise(existing).equals(Senders.normalise(name))) {
+                senders.setText("");
+                dashboard.connectionFeedback(getString(R.string.sender_already, existing));
+                return;
+            }
+        }
+        added.add(name);
+        senders.setText("");
+        drawAddedSenders();
+        dashboard.connectionFeedback(getString(R.string.sender_added, name));
+    }
+
+    /** Redraws the added names, each with its own way out. */
+    private void drawAddedSenders() {
+        addedSenders.removeAllViews();
+        if (added.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.no_added_senders);
+            empty.setTextSize(12);
+            empty.setTextColor(getResources().getColor(R.color.muted));
+            empty.setPadding(0, dp(4), 0, dp(4));
+            addedSenders.addView(empty);
+            return;
+        }
+        for (final String name : new java.util.ArrayList<>(added)) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(12), dp(10), dp(8), dp(10));
+            row.setBackgroundResource(R.drawable.soft_background);
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
+            rowParams.topMargin = dp(6);
+            row.setLayoutParams(rowParams);
+
+            TextView label = new TextView(this);
+            label.setText(name);
+            label.setTextSize(14);
+            label.setTextColor(getResources().getColor(R.color.ink));
+            label.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+            Button remove = new Button(this, null, android.R.attr.borderlessButtonStyle);
+            remove.setText(R.string.remove_sender);
+            remove.setTextSize(12);
+            remove.setMinHeight(dp(40));
+            remove.setTextColor(getResources().getColor(R.color.brand));
+            remove.setOnClickListener(v -> {
+                added.remove(name);
+                drawAddedSenders();
+            });
+            row.addView(label);
+            row.addView(remove);
+            addedSenders.addView(row);
+        }
     }
 
     @Override
@@ -203,30 +285,21 @@ public class MainActivity extends Activity {
             chosen[i] = networkBoxes[i].isChecked();
             any = any || chosen[i];
         }
-        // A typed name a listed network already covers ticks that network rather than
-        // being dropped, which looked like the app refusing it.
-        StringBuilder absorbed = new StringBuilder();
-        StringBuilder kept = new StringBuilder();
-        for (String entry : senders.getText().toString().split(",")) {
-            String name = entry.trim();
-            if (name.isEmpty()) continue;
-            int network = Senders.networkFor(name);
-            if (network >= 0) {
-                if (!chosen[network]) {
-                    chosen[network] = true;
-                    networkBoxes[network].setChecked(true);
-                }
-                any = true;
-                if (absorbed.length() > 0) absorbed.append(", ");
-                absorbed.append(name).append(" \u2192 ").append(Senders.NETWORKS[network][0]);
-            } else {
-                if (kept.length() > 0) kept.append(", ");
-                kept.append(name);
-            }
+        // Anything still sitting in the field counts as added, so a name typed and
+        // not confirmed with Add name is never quietly lost on save.
+        if (!senders.getText().toString().trim().isEmpty()) {
+            addTypedSender();
+            for (int i = 0; i < networkBoxes.length; i++) chosen[i] = networkBoxes[i].isChecked();
+            any = false;
+            for (boolean box : chosen) any = any || box;
         }
-        String typed = kept.toString();
-        senders.setText(typed);
-        final String folded = absorbed.toString();
+        StringBuilder list = new StringBuilder();
+        for (String name : added) {
+            if (list.length() > 0) list.append(", ");
+            list.append(name);
+        }
+        String typed = list.toString();
+        final String folded = "";
         if (!any && typed.isEmpty()) {
             senders.setError(getString(R.string.sender_empty)); senders.requestFocus(); return;
         }

@@ -19,7 +19,13 @@ public class SenderTest {
         yes("Telecel ticked from an existing install", Senders.selected(shipped, 2));
         yes("Vodafone ticked from an existing install", Senders.selected(shipped, 3));
         yes("AT ticked from an existing install", Senders.selected(shipped, 4));
-        no("M-Pesa not ticked from an existing install", Senders.selected(shipped, 5));
+        // A network the shipped list does not mention must not read as ticked. Named
+        // rather than indexed, so removing a network cannot make this quietly untrue.
+        for (int i = 0; i < n; i++) {
+            boolean covered = false;
+            for (String name : Senders.namesFor(i)) covered = covered || shipped.toLowerCase().contains(Senders.normalise(name));
+            if (!covered) no(Senders.NETWORKS[i][0] + " is not ticked by an existing install", Senders.selected(shipped, i));
+        }
         is("nothing shows as typed for an existing install", Senders.extras(shipped), "");
 
         // A name the owner typed survives a round trip and is never mistaken for a network.
