@@ -53,6 +53,7 @@ $s = str_replace("\n    static ", "\n    public static ", $s);
 file_put_contents($work . '/Senders.java', $s);
 copy(__DIR__ . '/SenderTest.java', $work . '/SenderTest.java');
 copy(__DIR__ . '/SenderListCheck.java', $work . '/SenderListCheck.java');
+copy(__DIR__ . '/NumberSenderTest.java', $work . '/NumberSenderTest.java');
 
 // ---------------------------------------------------------------------- build, run
 $home = getenv('JAVA_HOME');
@@ -71,7 +72,8 @@ $run = static function ($command) {
 [$code, $out] = $run(escapeshellarg($javac) . ' -nowarn -d ' . escapeshellarg($work . '/out')
     . ' ' . escapeshellarg($work . '/Senders.java')
     . ' ' . escapeshellarg($work . '/SenderTest.java')
-    . ' ' . escapeshellarg($work . '/SenderListCheck.java'));
+    . ' ' . escapeshellarg($work . '/SenderListCheck.java')
+    . ' ' . escapeshellarg($work . '/NumberSenderTest.java'));
 if ($code !== 0) {
     fwrite(STDERR, $out . "
 ");
@@ -79,7 +81,7 @@ if ($code !== 0) {
 }
 
 $failed = 0;
-foreach (['SenderTest', 'SenderListCheck'] as $test) {
+foreach (['SenderTest', 'SenderListCheck', 'NumberSenderTest'] as $test) {
     [$ran, $said] = $run(escapeshellarg($java) . ' -cp ' . escapeshellarg($work . '/out') . ' ' . $test);
     echo $said . "
 ";

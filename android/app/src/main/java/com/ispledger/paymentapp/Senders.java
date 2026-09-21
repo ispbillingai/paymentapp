@@ -135,6 +135,23 @@ final class Senders {
     }
 
     /**
+     * Two spellings of one phone number.
+     *
+     * A message arrives from +254796381603 while the owner types 0796381603,
+     * and compared as text those are simply different, which is a sender list
+     * that looks right and never matches. The last nine digits are the number
+     * itself: the country code and the leading zero are how it was written
+     * down, not which phone it is. Both sides must be numbers, so MTN and MTN2
+     * are still two different names.
+     */
+    private static boolean sameNumber(String a, String b) {
+        if (!a.matches("\\d{9,}") || !b.matches("\\d{9,}")) {
+            return false;
+        }
+        return a.substring(a.length() - 9).equals(b.substring(b.length() - 9));
+    }
+
+    /**
      * Is this a sender the owner has asked for?
      *
      * A number used to be refused here whatever the list said, on the reasoning
@@ -143,12 +160,27 @@ final class Senders {
      * list still forwards nothing at all.
      */
     static boolean allowed(Context c, String sender) {
+        return matches(Prefs.senders(c), sender);
+    }
+
+    /**
+     * The decision itself, with the saved list handed in rather than read.
+     *
+     * Separated from allowed() only so it can be tested: this is what decides
+     * whether a message leaves the phone, and away from a phone there is
+     * nothing to read the saved list from.
+     */
+    static boolean matches(String list, String sender) {
         String key = normalise(sender);
-        if (key.isEmpty()) {
+        if (key.isEmpty() || list == null) {
             return false;
         }
-        for (String name : Prefs.senders(c).split(",")) {
-            if (normalise(name).equals(key)) {
+        for (String name : list.split(",")) {
+            String listed = normalise(name);
+            if (listed.isEmpty()) {
+                continue;
+            }
+            if (listed.equals(key) || sameNumber(listed, key)) {
                 return true;
             }
         }

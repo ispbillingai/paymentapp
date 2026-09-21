@@ -52,6 +52,12 @@ $check('M-PESA with a hyphen too', Parser::providerForSender('M-PESA', '254'), '
 // nothing: the list is what decides, not the shape of the sender.
 $check('an unlisted number is not a sender', Parser::providerForSender('0712345678', '254'), '');
 $check('a number the merchant listed is', Parser::providerForSender('0712345678', '254', ['other' => ['0712345678']]), 'other');
+// The phone reports the number the network gives it, which is rarely the way
+// anyone types it. One number, however it is written.
+$check('written local, arriving international', Parser::providerForSender('+254712345678', '254', ['other' => ['0712345678']]), 'other');
+$check('written international, arriving local', Parser::providerForSender('0712345678', '254', ['other' => ['+254 712 345 678']]), 'other');
+$check('a different number is still different', Parser::providerForSender('+254712345679', '254', ['other' => ['0712345678']]), '');
+$check('names that merely end alike are not one number', Parser::providerForSender('PAYBILL2', '254', ['other' => ['PAYBILL1']]), '');
 $check('the label an owner sees', Parser::providerLabel('mpesa_ke'), 'M-Pesa');
 
 echo $failures === 0 ? "PASS: M-Pesa receipts read correctly, and money sent is never counted.\n" : "$failures check(s) failed.\n";

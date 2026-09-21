@@ -1,5 +1,5 @@
 {
-    "version_code": 17,
-    "version_name": "1.5.2",
-    "notes": "A sender name you type is now accepted as you type it, including a plain number. Nothing is forwarded unless you have listed it, exactly as before."
+    "version_code": 18,
+    "version_name": "1.5.3",
+    "notes": "A sender name is matched the way you typed it, and a phone number matches however it arrives: type 0714430753 and a message from +254714430753 is the same number. Nothing is forwarded unless you have listed it."
 }

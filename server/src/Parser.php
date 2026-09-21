@@ -206,12 +206,30 @@ class Parser
         }
         foreach ($map as $prov => $names) {
             foreach ($names as $n) {
-                if (self::senderKey($n) === $key) {
+                $listed = self::senderKey($n);
+                if ($listed === $key || self::sameNumber($listed, $key)) {
                     return $prov;
                 }
             }
         }
         return '';
+    }
+
+    /**
+     * Two spellings of one phone number.
+     *
+     * A message arrives from +254796381603 while the merchant typed
+     * 0796381603, and compared as text those are different. The last nine
+     * digits are the number itself; the country code and the leading zero are
+     * how it was written down. Both sides must be numbers, so two sender names
+     * that merely end alike are still two names.
+     */
+    private static function sameNumber($a, $b)
+    {
+        if (!preg_match('/^\d{9,}$/', $a) || !preg_match('/^\d{9,}$/', $b)) {
+            return false;
+        }
+        return substr($a, -9) === substr($b, -9);
     }
 
     /**
