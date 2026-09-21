@@ -71,6 +71,41 @@ function renderPublicSite(string $path, string $method): void
         if ($method !== 'HEAD') readfile($site . '/' . $file);
         return;
     }
+    /**
+     * What the newest build is, so the app can update itself instead of the owner
+     * having to find a download. The checksum is computed from the file being
+     * served, and the app refuses anything that does not match it, so a truncated
+     * or altered download never reaches the installer. Android additionally
+     * refuses an update that is not signed with the same key as the installed app.
+     */
+    if ($path === '/app/version.json') {
+        $apk = dirname(__DIR__, 2) . '/dist/PaymentBridge.apk';
+        $release = dirname(__DIR__, 2) . '/dist/release.json';
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: public, max-age=300');
+        if (!is_file($apk) || !is_file($release)) {
+            http_response_code(404);
+            if ($method !== 'HEAD') echo json_encode(['error' => ['code' => 'no_build', 'message' => 'No build is published right now.']]);
+            return;
+        }
+        $info = json_decode((string) file_get_contents($release), true);
+        if (!is_array($info)) {
+            http_response_code(500);
+            if ($method !== 'HEAD') echo json_encode(['error' => ['code' => 'bad_release', 'message' => 'The published build details could not be read.']]);
+            return;
+        }
+        if ($method === 'HEAD') return;
+        echo json_encode([
+            'version_code' => (int) ($info['version_code'] ?? 0),
+            'version_name' => (string) ($info['version_name'] ?? ''),
+            'notes' => (string) ($info['notes'] ?? ''),
+            'url' => 'https://ispbillingpay.com/download',
+            'size' => filesize($apk),
+            'sha256' => hash_file('sha256', $apk),
+            'published_at' => gmdate('c', filemtime($apk)),
+        ]);
+        return;
+    }
     if ($path === '/download') {
         $apk = dirname(__DIR__, 2) . '/dist/PaymentBridge.apk';
         if (!is_file($apk)) fail('not_found', 'The app is not available right now. Contact contact@ispbillingpay.com for help.', 404);

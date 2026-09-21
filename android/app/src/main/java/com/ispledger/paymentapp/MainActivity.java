@@ -31,7 +31,13 @@ public class MainActivity extends Activity {
     private TextView status, activity;
     private Button save, allowSms, allowBattery, allowNotifications;
     private TextView title, badge, queued, lastContact, smsState, batteryState, notificationState;
-    private LinearLayout activityRows;
+    private LinearLayout activityRows, senderBoxes;
+    private CheckBox[] networkBoxes;
+    private TextView updateState, updateNotes;
+    private Button updateAction;
+    private android.widget.ProgressBar updateProgress;
+    private Updater.Release pending;
+    private boolean updateBusy;
     private boolean testing;
     private String lastActivity = "";
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -102,7 +108,29 @@ public class MainActivity extends Activity {
             key.setTransformationMethod(checked ? null : PasswordTransformationMethod.getInstance());
             key.setSelection(key.length());
         });
-        senders.setText(Prefs.senders(this));
+        // Networks are ticked; anything not listed is typed into the field below them.
+        senderBoxes = findViewById(R.id.sender_boxes);
+        String saved = Prefs.senders(this);
+        networkBoxes = new CheckBox[Senders.NETWORKS.length];
+        for (int i = 0; i < Senders.NETWORKS.length; i++) {
+            CheckBox box = new CheckBox(this);
+            box.setText(Senders.NETWORKS[i][0]);
+            box.setTextSize(14);
+            box.setMinHeight(dp(46));
+            box.setTextColor(getResources().getColor(R.color.ink));
+            box.setChecked(Senders.selected(saved, i));
+            networkBoxes[i] = box;
+            senderBoxes.addView(box);
+        }
+        senders.setText(Senders.extras(saved));
+
+        updateState = findViewById(R.id.update_state);
+        updateNotes = findViewById(R.id.update_notes);
+        updateAction = findViewById(R.id.update_action);
+        updateProgress = findViewById(R.id.update_progress);
+        updateState.setText(getString(R.string.update_current, BuildConfig.VERSION_NAME));
+        updateAction.setOnClickListener(v -> onUpdateTapped());
+        checkForUpdate();
 
         save.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -153,11 +181,18 @@ public class MainActivity extends Activity {
             key.requestFocus();
             return;
         }
-        if (senders.getText().toString().trim().isEmpty()) {
+        boolean[] chosen = new boolean[networkBoxes.length];
+        boolean any = false;
+        for (int i = 0; i < networkBoxes.length; i++) {
+            chosen[i] = networkBoxes[i].isChecked();
+            any = any || chosen[i];
+        }
+        String typed = senders.getText().toString().trim();
+        if (!any && typed.isEmpty()) {
             senders.setError(getString(R.string.sender_empty)); senders.requestFocus(); return;
         }
         testing = true;
-        Prefs.save(this, u, k, senders.getText().toString());
+        Prefs.save(this, u, k, Senders.compose(chosen, typed));
         status.setText(R.string.testing);
         save.setEnabled(false);
         save.setText(R.string.testing_button);
@@ -183,6 +218,106 @@ public class MainActivity extends Activity {
                     }
                 });
             }
+        }).start();
+    }
+
+    /**
+     * Asks the service what the newest build is. A failure is said plainly and
+     * changes nothing else: a phone that cannot check still keeps reporting payments.
+     */
+    private void checkForUpdate() {
+        if (updateBusy) {
+            return;
+        }
+        updateBusy = true;
+        updateAction.setEnabled(false);
+        new Thread(() -> {
+            final Updater.Release release = Updater.check();
+            ui.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                updateBusy = false;
+                updateAction.setEnabled(true);
+                if (release == null) {
+                    pending = null;
+                    updateState.setText(getString(R.string.update_unreachable, BuildConfig.VERSION_NAME));
+                    updateNotes.setVisibility(View.GONE);
+                    updateAction.setText(R.string.update_check);
+                    return;
+                }
+                if (!release.newerThanInstalled()) {
+                    pending = null;
+                    updateState.setText(getString(R.string.update_latest, BuildConfig.VERSION_NAME));
+                    updateNotes.setVisibility(View.GONE);
+                    updateAction.setText(R.string.update_check);
+                    return;
+                }
+                pending = release;
+                updateState.setText(getString(R.string.update_available, release.versionName, BuildConfig.VERSION_NAME));
+                if (release.notes.isEmpty()) {
+                    updateNotes.setVisibility(View.GONE);
+                } else {
+                    updateNotes.setText(release.notes);
+                    updateNotes.setVisibility(View.VISIBLE);
+                }
+                updateAction.setText(Updater.canInstall(MainActivity.this)
+                        ? getString(R.string.update_install, release.versionName)
+                        : getString(R.string.update_allow));
+            });
+        }).start();
+    }
+
+    /** Check, or download and install, depending on what is known so far. */
+    private void onUpdateTapped() {
+        if (pending == null) {
+            checkForUpdate();
+            return;
+        }
+        if (!Updater.canInstall(this)) {
+            updateNotes.setText(R.string.update_allow_why);
+            updateNotes.setVisibility(View.VISIBLE);
+            Intent settings = Updater.allowInstallSettings(this);
+            if (settings != null) {
+                try { startActivity(settings); } catch (Exception ignored) { }
+            }
+            return;
+        }
+        final Updater.Release release = pending;
+        updateBusy = true;
+        updateAction.setEnabled(false);
+        updateAction.setText(R.string.update_downloading);
+        updateProgress.setProgress(0);
+        updateProgress.setVisibility(View.VISIBLE);
+        final Context app = getApplicationContext();
+        new Thread(() -> {
+            String problem = "";
+            java.io.File file = null;
+            try {
+                file = Updater.download(app, release, percent -> ui.post(() -> updateProgress.setProgress(percent)));
+            } catch (Exception e) {
+                problem = e.getMessage() == null ? "The update could not be downloaded." : e.getMessage();
+            }
+            final String why = problem;
+            final java.io.File ready = file;
+            ui.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                updateBusy = false;
+                updateAction.setEnabled(true);
+                updateProgress.setVisibility(View.GONE);
+                if (ready == null) {
+                    updateNotes.setText(why);
+                    updateNotes.setVisibility(View.VISIBLE);
+                    updateAction.setText(getString(R.string.update_install, release.versionName));
+                    return;
+                }
+                updateState.setText(R.string.update_ready);
+                updateAction.setText(getString(R.string.update_install, release.versionName));
+                try {
+                    Updater.install(MainActivity.this, ready);
+                } catch (Exception e) {
+                    updateNotes.setText(e.getMessage() == null ? "Android could not open the installer." : e.getMessage());
+                    updateNotes.setVisibility(View.VISIBLE);
+                }
+            });
         }).start();
     }
 
