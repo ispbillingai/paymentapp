@@ -1,12 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" ?>
 <resources>
     <!-- The brand name lives here and nowhere else. Change it in this one line. -->
-    <string name="app_name">Payment Bridge</string>
-
+    <string name="app_name">ISP Pay Bridge</string>
     <string name="channel_name">Payment listener</string>
     <string name="notif_title">Listening for payments</string>
     <string name="notif_text">Mobile money payments are reported as they arrive.</string>
-
     <string name="label_url">Payment service address</string>
     <string name="hint_url">https://ispbillingpay.com/v1/device/messages</string>
     <string name="help_url">Leave this alone unless support asks you to change it.</string>
@@ -16,21 +14,57 @@
     <string name="label_senders">Mobile money sender names</string>
     <string name="help_senders">Only messages from these sender names are read. Messages from people, banks and everyone else are ignored and never leave this phone.</string>
     <string name="label_activity">Recent activity</string>
-    <string name="activity_empty">Nothing yet. Send a small amount to your number to test.</string>
-
-    <string name="btn_save">Save and test</string>
+    <string name="activity_empty">No activity yet. Connect this phone to see updates here.</string>
+    <string name="btn_save">Connect this phone</string>
     <string name="btn_allow_sms">Allow reading payment messages</string>
     <string name="btn_allow_battery">Keep running in the background</string>
-
     <string name="testing">Checking the connection</string>
     <string name="err_url">The address must start with https://</string>
     <string name="err_key">The key is 40 characters long. Copy it from the Direct Number page in your dashboard.</string>
-
     <string name="state_setup">Not set up yet. In your dashboard open Settings, Payment Gateway, DirectNumber. Add this phone, then paste its key into the box below.</string>
     <string name="state_no_sms">Almost ready. Tap the button below so this app can see payment messages when they arrive.</string>
     <string name="state_waiting">Saved. Waiting for the first contact.</string>
     <string name="state_ok">Working. Last contact: %1$s. Keep this phone on charge and online.</string>
     <string name="state_queue">%1$d payment message(s) waiting to be sent. They will go as soon as the internet is back.</string>
-
     <string name="privacy">This app sees a text message only at the moment it arrives, and only passes on messages from the mobile money sender names listed above. It cannot open your inbox. A payment message is deleted from this app as soon as it has been delivered.</string>
+    <string name="brand_name">ISP Billing Pay</string>
+    <string name="forwarder_label">PAYMENT FORWARDER</string>
+    <string name="hero_title">Your payment connection.</string>
+    <string name="hero_setup">Let’s get you connected.</string>
+    <string name="hero_ready">Ready for the next payment.</string>
+    <string name="hero_attention">Your connection needs attention.</string>
+    <string name="hero_testing">Checking your connection…</string>
+    <string name="pill_setup">SETUP NEEDED</string>
+    <string name="pill_ready">CONNECTED</string>
+    <string name="pill_attention">ACTION NEEDED</string>
+    <string name="pill_testing">CONNECTING</string>
+    <string name="queue_label">Waiting to forward</string>
+    <string name="last_contact_label">Last connection</string>
+    <string name="never_contact">Not yet connected</string>
+    <string name="device_heading">This phone, connected.</string>
+    <string name="device_caption">Two permissions keep your payment listener working reliably.</string>
+    <string name="sms_ready">Payment messages enabled</string>
+    <string name="sms_needed">Enable payment messages</string>
+    <string name="battery_ready">Background access enabled</string>
+    <string name="battery_needed">Allow background activity</string>
+    <string name="notifications_needed">Allow listener notifications</string>
+    <string name="notifications_ready">Listener notifications enabled</string>
+    <string name="permissions_note">Only configured sender names are forwarded. Your inbox stays private.</string>
+    <string name="settings_heading">Device connection</string>
+    <string name="settings_caption">Pair once with the device key from your billing dashboard. No account password needed.</string>
+    <string name="settings_open">Edit connection settings</string>
+    <string name="settings_close">Hide connection settings</string>
+    <string name="show_pairing">Show device key</string>
+    <string name="activity_caption">A simple record of connections and forwarding.</string>
+    <string name="privacy_heading">Built for a dedicated phone</string>
+    <string name="privacy_short">Keep this phone charged, online and with your receiving SIM. Funds go directly to your account.</string>
+    <string name="help_link">Setup guide</string>
+    <string name="footer_note">Direct payments. One connection closer.</string>
+    <string name="recent_stale">Last contact is over 15 minutes ago. Check the connection.</string>
+    <string name="sender_empty">Sender names cannot be empty. Keep at least one trusted sender.</string>
+    <string name="updated">Updated just now</string>
+    <string name="advanced_open">Custom gateway address</string>
+    <string name="testing_button">Connecting…</string>
+    <string name="zero_count">0</string>
+    <string name="no_contact_placeholder">—</string>
 </resources>

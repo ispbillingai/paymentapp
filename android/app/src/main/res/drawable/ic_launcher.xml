@@ -1,10 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="#0F766E" />
-            <corners android:radius="22dp" />
-        </shape>
-    </item>
-    <item android:drawable="@drawable/ic_glyph" android:gravity="center" android:width="60dp" android:height="60dp" />
-</layer-list>
+<?xml version="1.0" ?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="80" android:viewportHeight="80">
+    <path android:fillColor="#F6F8F1" android:pathData="M0,0h80v80H0z"/>
+    <group android:translateX="8" android:translateY="8">
+        <path android:fillColor="#086653" android:pathData="M13,10h23c11.7,0 20,7.9 20,19S47.7,48 36,48h-8v8H13V10zM28,23v12h8c3.8,0 5.8,-2.2 5.8,-6S39.8,23 36,23h-8z"/>
+        <path android:fillColor="#9ABA70" android:pathData="M20,57a3.5,3.5 0,1 1,-7,0a3.5,3.5 0,1 1,7,0"/>
+    </group>
+</vector>
