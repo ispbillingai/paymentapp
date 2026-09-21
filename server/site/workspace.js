@@ -1009,7 +1009,7 @@
       {label: 'Listener', key: 'label'},
       ...(scope.owner ? [{label: 'Merchant', key: 'merchant'}] : []),
       {label: 'Network', key: 'provider_label'},
-      {label: 'Receives on', cell: row => row.receiving_number + ' · ' + row.receiving_name},
+      {label: 'Receives on', cell: row => [row.receiving_number, row.receiving_name].filter(Boolean).join(' · ') || 'Not set'},
       {
         label: 'State',
         cell: row => {

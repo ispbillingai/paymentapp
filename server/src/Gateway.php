@@ -118,18 +118,19 @@ class Gateway
         } elseif (!array_key_exists($provider, Parser::defaultSenders($m['dial_code']))) {
             return ['error' => ['code' => 'unknown_provider', 'message' => 'Choose your mobile money network.']];
         }
-        $rkey = Parser::msisdnKey($number, Parser::msisdnDigitsFor($m['dial_code']));
-        if ($rkey === '') {
-            return ['error' => ['code' => 'bad_number', 'message' => 'Enter the full number that receives the money.']];
-        }
-        if ($name === '') {
-            return ['error' => ['code' => 'name_required', 'message' => 'Enter the name registered on that number.']];
+        // Both may be left blank. They are not used to read or match a payment: the
+        // message names the sender, not the receiver, and ingest keys on the device
+        // itself when there is no number. They are only how a customer is told where
+        // to send money, which a phone pairing itself has no reason to know.
+        $rkey = $number === '' ? '' : Parser::msisdnKey($number, Parser::msisdnDigitsFor($m['dial_code']));
+        if ($number !== '' && $rkey === '') {
+            return ['error' => ['code' => 'bad_number', 'message' => 'That does not look like a full number. Include the country code, or leave it blank.']];
         }
         $key = bin2hex(random_bytes(20));
         Db::run(
             "INSERT INTO devices (public_id, merchant_id, label, provider, receiving_number, receiving_key, receiving_name, extra_senders, key_hash, status, created_at)
              VALUES (?,?,?,?,?,?,?,?,?, 'active', ?)",
-            [self::newId('dev'), (int) $m['id'], substr(trim((string) ($in['label'] ?? '')) ?: $name, 0, 80), $provider, substr($number, 0, 20), $rkey, substr($name, 0, 100), substr(trim((string) ($in['extra_senders'] ?? '')), 0, 255), hash('sha256', $key), self::now()]
+            [self::newId('dev'), (int) $m['id'], substr(trim((string) ($in['label'] ?? '')) ?: ($name !== '' ? $name : 'Listener'), 0, 80), $provider, substr($number, 0, 20), $rkey, substr($name, 0, 100), substr(trim((string) ($in['extra_senders'] ?? '')), 0, 255), hash('sha256', $key), self::now()]
         );
         $d = Db::row("SELECT * FROM devices WHERE id = ?", [Db::lastId()]);
         return ['device' => self::deviceOut($d), 'device_key' => $key];
@@ -169,6 +170,9 @@ class Gateway
     {
         $out = [];
         foreach (Db::rows("SELECT * FROM devices WHERE merchant_id = ? AND status = 'active' ORDER BY id", [(int) $merchantId]) as $d) {
+            if (trim((string) $d['receiving_number']) === '') {
+                continue;
+            }
             $out[] = ['number' => $d['receiving_number'], 'name' => $d['receiving_name'], 'provider' => Parser::providerLabel($d['provider'])];
         }
         return $out;

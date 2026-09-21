@@ -71,8 +71,12 @@ final class Enrol {
     /**
      * Registers this phone and returns its own key. The account key is used for this
      * one request and then goes out of scope; nothing stores it.
+     *
+     * The number this phone watches is not sent. A payment message names the sender,
+     * so the receiver is never needed to read one; where customers should send money
+     * is set in the dashboard, which is where it is shown to them.
      */
-    static Result pair(Context c, String accountKey, String receivingNumber, String receivingName, String senders, String label) {
+    static Result pair(Context c, String accountKey, String senders, String label) {
         Result out = new Result();
         HttpURLConnection con = null;
         try {
@@ -82,8 +86,6 @@ final class Enrol {
             // the same list it filters messages against.
             body.put("provider", "other");
             body.put("extra_senders", senders);
-            body.put("receiving_number", receivingNumber);
-            body.put("receiving_name", receivingName);
             body.put("label", label);
 
             con = (HttpURLConnection) new URL(baseUrl(c) + "/v1/devices").openConnection();

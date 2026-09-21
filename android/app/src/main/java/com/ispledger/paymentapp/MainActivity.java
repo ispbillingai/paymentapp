@@ -32,8 +32,8 @@ public class MainActivity extends Activity {
     private TextView status, activity;
     private Button save, allowSms, allowBattery, allowNotifications;
     private TextView title, badge, queued, lastContact, smsState, batteryState, notificationState;
-    private LinearLayout activityRows, senderBoxes, pairFields;
-    private EditText pairNumber, pairName;
+    private LinearLayout activityRows, senderBoxes;
+    private TextView pairFields;
     private CheckBox[] networkBoxes;
     private TextView updateState, updateNotes;
     private Button updateAction;
@@ -109,8 +109,6 @@ public class MainActivity extends Activity {
         key.setText(Prefs.key(this));
         // An account key needs two more details before this phone can register itself.
         pairFields = findViewById(R.id.pair_fields);
-        pairNumber = findViewById(R.id.pair_number);
-        pairName = findViewById(R.id.pair_name);
         key.addTextChangedListener(new android.text.TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
@@ -198,16 +196,7 @@ public class MainActivity extends Activity {
             key.requestFocus();
             return;
         }
-        final String number = pairNumber.getText().toString().trim();
-        final String onAccount = pairName.getText().toString().trim();
-        if (pairing) {
-            if (number.replaceAll("[^0-9]", "").length() < 6) {
-                pairNumber.setError(getString(R.string.pair_need_number)); pairNumber.requestFocus(); return;
-            }
-            if (onAccount.isEmpty()) {
-                pairName.setError(getString(R.string.pair_need_name)); pairName.requestFocus(); return;
-            }
-        }
+
         boolean[] chosen = new boolean[networkBoxes.length];
         boolean any = false;
         for (int i = 0; i < networkBoxes.length; i++) {
@@ -235,7 +224,7 @@ public class MainActivity extends Activity {
             public void run() {
                 String pairProblem = "";
                 if (pairing) {
-                    Enrol.Result paired = Enrol.pair(app, k, number, onAccount, senderList, android.os.Build.MODEL);
+                    Enrol.Result paired = Enrol.pair(app, k, senderList, android.os.Build.MODEL);
                     if (paired.ok()) {
                         Prefs.save(app, u, paired.deviceKey, senderList);
                     } else {
@@ -257,8 +246,6 @@ public class MainActivity extends Activity {
                             // The account key has done its job. Take it off the screen and
                             // show the key this phone was given in its place.
                             key.setText(Prefs.key(app));
-                            pairNumber.setText("");
-                            pairName.setText("");
                             pairFields.setVisibility(View.GONE);
                         }
                         dashboard.connectionFeedback(!problem.isEmpty() ? problem
