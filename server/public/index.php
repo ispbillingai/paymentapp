@@ -163,6 +163,11 @@ try {
         exit;
     }
 
+    if (in_array($path, ['/v1/download', '/v1/app/download', '/v1/app'], true) && in_array($method, ['GET', 'HEAD'], true)) {
+        header('Location: /download', true, 302);
+        exit;
+    }
+
     // Browser session mutations require a same-origin custom header; no CORS is granted.
     if (strpos($path, '/v1/portal/') === 0 && $method !== 'GET') {
         if (($_SERVER['HTTP_X_PORTAL_REQUEST'] ?? '') !== '1' || ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') fail('forbidden', 'Use the merchant workspace to make this request.', 403);

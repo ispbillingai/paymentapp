@@ -3,8 +3,9 @@
 return [
     'db' => ['host' => 'localhost', 'name' => 'paymentgateway', 'user' => 'paymentgateway', 'pass' => ''],
 
-    // Countries where Direct Number is not offered. Kenya has M-Pesa's own API.
-    'blocked_dial_codes' => ['254'],
+    // Dialling codes Direct Number refuses, e.g. ['254']. Empty means every country
+    // may register; a billing platform still decides for itself where it offers it.
+    'blocked_dial_codes' => [],
 
     // Headers to trust for the caller's address, only if this sits behind a proxy you control.
     // Example: ['HTTP_CF_CONNECTING_IP']

@@ -147,6 +147,10 @@ function renderPublicSite(string $path, string $method): void
         ]);
         return;
     }
+    if (in_array(strtolower($path), ['/download.apk', '/paymentbridge.apk', '/app/download', '/app.apk', '/apk'], true) || ($path !== '/download' && strtolower($path) === '/download')) {
+        header('Location: /download', true, 302);
+        return;
+    }
     if ($path === '/download') {
         $apk = dirname(__DIR__, 2) . '/dist/PaymentBridge.apk';
         if (!is_file($apk)) fail('not_found', 'The app is not available right now. Contact contact@ispbillingpay.com for help.', 404);

@@ -32,6 +32,10 @@ class Parser
             'telecel_gh' => ['TelecelCash', 'Telecel Cash', 'VodaCash', 'Vodafone Cash', 'T-Cash'],
             'at_gh'      => ['ATMoney', 'AT Money', 'AirtelTigo', 'AirtelTigo Money'],
         ],
+        '254' => [
+            'mpesa_ke'  => ['MPESA', 'M-PESA'],
+            'airtel_ke' => ['AirtelMoney', 'Airtel Money', 'AIRTELMONEY'],
+        ],
     ];
 
     private static $providerLabels = [
@@ -40,6 +44,8 @@ class Parser
         'mtn_gh'     => 'MTN MoMo',
         'telecel_gh' => 'Telecel Cash',
         'at_gh'      => 'AT Money',
+        'mpesa_ke'   => 'M-Pesa',
+        'airtel_ke'  => 'Airtel Money',
         'other'      => 'Mobile money',
     ];
 
@@ -48,6 +54,7 @@ class Parser
         'UGX' => 'UGX', 'USH' => 'UGX', 'SHS' => 'UGX',
         'GHS' => 'GHS', 'GHC' => 'GHS',
         'TZS' => 'TZS', 'TSH' => 'TZS',
+        'KES' => 'KES', 'KSH' => 'KES', 'KSHS' => 'KES',
         'RWF' => 'RWF', 'NGN' => 'NGN', 'XAF' => 'XAF', 'ZMW' => 'ZMW', 'MWK' => 'MWK',
     ];
 
@@ -259,6 +266,12 @@ class Parser
         }
         $curWords = implode('|', array_keys($currencies));
         if (preg_match('/received.{0,60}?\b(' . $curWords . ')\.?\s*([\d][\d,]*(?:\.\d{1,2})?)/i', $text, $m)) {
+            $out['currency'] = $currencies[strtoupper($m[1])];
+            $out['amount'] = (float) str_replace(',', '', $m[2]);
+        } elseif (preg_match('/\b(' . $curWords . ')\.?\s*([\d][\d,]*(?:\.\d{1,2})?)\s+received\s+from\b/i', $text, $m)) {
+            // Some receipts, till payments among them, state the amount first:
+            // "Ksh250.00 received from ...". It must be followed by "received
+            // from", so money the owner SENT is never read as money coming in.
             $out['currency'] = $currencies[strtoupper($m[1])];
             $out['amount'] = (float) str_replace(',', '', $m[2]);
         }
