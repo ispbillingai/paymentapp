@@ -1,5 +1,5 @@
 {
-  "version_code": 11,
-  "version_name": "1.4.6",
-  "notes": "One sender list: built-in networks and your own names together, each with a tick box and Remove. A message the service does not record is no longer reported as delivered; the log says what happened and why. The phone also keeps the service's copy of its sender list in step."
+  "version_code": 12,
+  "version_name": "1.4.7",
+  "notes": "The activity log now separates forwarding from the result: a message always leaves this phone, and what follows is the service's verdict on it. Money you sent, fee notices and balance notices are forwarded and kept, but are not payments."
 }

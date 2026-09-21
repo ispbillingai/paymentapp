@@ -684,8 +684,8 @@ try {
         // Recorded or not, the message is settled and the phone should stop holding it.
         // ok says that; result and reason say what actually became of it.
         $reasons = [
-            'unknown_sender' => 'This listener is not set up to accept that sender name. Add it on the phone, or in Listener devices.',
-            'not_a_payment'  => 'That message was not a payment confirmation this service could read.',
+            'unknown_sender' => 'Forwarded, but this listener does not accept that sender name. Add it on the phone, under sender names.',
+            'not_a_payment'  => 'Forwarded, but it is not money coming in: money you sent, a fee or balance notice, and the like are kept but never recorded as a payment.',
             'ignored'        => 'That message could not be read.',
         ];
         $reply = ['ok' => true, 'result' => $result];

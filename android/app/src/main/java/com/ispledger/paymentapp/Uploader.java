@@ -86,8 +86,10 @@ final class Uploader {
             return "Payment from " + sender + " was already recorded";
         }
         if (lastResult.startsWith("ignored") || "unknown_sender".equals(lastResult) || "not_a_payment".equals(lastResult)) {
-            return "NOT recorded: message from " + sender
-                    + (lastReason.isEmpty() ? " was not accepted by the payment service" : ". " + lastReason);
+            // The message did leave this phone. What follows is the service's verdict on
+            // it, not this phone refusing to send: the two read very differently.
+            return "Forwarded from " + sender + ", not recorded. "
+                    + (lastReason.isEmpty() ? "The payment service did not accept it." : lastReason);
         }
         return "Payment from " + sender + " recorded";
     }

@@ -31,6 +31,13 @@ $cases = [
         ['kind' => 'other', 'amount' => 0.0]],
     ['a balance line alone is not a payment', 'Your M-PESA balance was Ksh4,500.00 on 21/9/26 at 2:00 PM.',
         ['kind' => 'other', 'amount' => 0.0]],
+    // Both of these reached the owner's listener on 21 Sep 2026 and were correctly
+    // refused. They are kept here so a later change to the amount patterns cannot
+    // quietly start counting money going out as money coming in.
+    ['real receipt: money sent out', 'UIL0K7XB8J Confirmed. Ksh1.00 sent to FAITH  NDAMU 0768424304 on 21/9/26 at 12:53 PM. New M-PESA balance is Ksh0.00. Transaction cost, Ksh0.00.  Amount you can transact within the day is 488,997.00. See all your balances now https://saf.cx/iqIzU',
+        ['kind' => 'other', 'amount' => 0.0]],
+    ['real receipt: a Fuliza overdraft notice', 'UIL0K7XB8J Confirmed. Fuliza M-PESA amount is Ksh 1.00. Access Fee charged Ksh 0.01. Total Fuliza M-PESA outstanding amount is Ksh1919.00 due on 21/10/26. To check daily charges, Dial *334#OK Select Query Charges',
+        ['kind' => 'other', 'amount' => 0.0]],
 ];
 foreach ($cases as [$label, $text, $want]) {
     $got = Parser::parseMessage('mpesa_ke', $text, 'KES');
