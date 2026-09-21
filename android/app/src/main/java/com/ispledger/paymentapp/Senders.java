@@ -134,10 +134,17 @@ final class Senders {
         return s == null ? "" : s.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 
+    /**
+     * Is this a sender the owner has asked for?
+     *
+     * A number used to be refused here whatever the list said, on the reasoning
+     * that a number is a person. The list is the decision instead: a sender
+     * reaches this phone's outbox only because the owner typed it, and an empty
+     * list still forwards nothing at all.
+     */
     static boolean allowed(Context c, String sender) {
         String key = normalise(sender);
-        // A sender that is mostly digits is a person, not a network.
-        if (key.isEmpty() || key.matches("\\d{5,}")) {
+        if (key.isEmpty()) {
             return false;
         }
         for (String name : Prefs.senders(c).split(",")) {

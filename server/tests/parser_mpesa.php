@@ -48,7 +48,10 @@ foreach ($cases as [$label, $text, $want]) {
 
 $check('MPESA is an allowed sender for 254', Parser::providerForSender('MPESA', '254'), 'mpesa_ke');
 $check('M-PESA with a hyphen too', Parser::providerForSender('M-PESA', '254'), 'mpesa_ke');
-$check('a person texting is never a network', Parser::providerForSender('0712345678', '254'), '');
+// A number is allowed only because the merchant named it. Unnamed, it is still
+// nothing: the list is what decides, not the shape of the sender.
+$check('an unlisted number is not a sender', Parser::providerForSender('0712345678', '254'), '');
+$check('a number the merchant listed is', Parser::providerForSender('0712345678', '254', ['other' => ['0712345678']]), 'other');
 $check('the label an owner sees', Parser::providerLabel('mpesa_ke'), 'M-Pesa');
 
 echo $failures === 0 ? "PASS: M-Pesa receipts read correctly, and money sent is never counted.\n" : "$failures check(s) failed.\n";

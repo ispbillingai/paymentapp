@@ -184,14 +184,20 @@ class Parser
     }
 
     /**
-     * Which provider does this sender name belong to? '' when it is not an
-     * allowed mobile money sender, including every ordinary phone number: a
-     * sender that is mostly digits is a person, not a network.
+     * Which provider does this sender name belong to? '' when the sender is not
+     * one this merchant has allowed.
+     *
+     * A plain phone number used to be refused outright, on the reasoning that a
+     * number is a person and a network has a name. That also refused the
+     * networks that really do send from a number, and it refused a merchant who
+     * had deliberately typed one in. The list is the decision: nothing reaches
+     * here that the merchant has not named, so naming a number is allowed and
+     * naming nothing still forwards nothing.
      */
     public static function providerForSender($sender, $dialCode, array $extra = [])
     {
         $key = self::senderKey($sender);
-        if ($key === '' || preg_match('/^\d{5,}$/', $key)) {
+        if ($key === '') {
             return '';
         }
         $map = self::defaultSenders($dialCode);
