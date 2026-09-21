@@ -211,7 +211,11 @@ class Gateway
         if ($metadata === false || strlen($metadata) > 16384) {
             return ['error' => ['code' => 'bad_metadata', 'message' => 'Metadata must be valid JSON no larger than 16 KB.']];
         }
-        if (!self::payTo($m['id'])) {
+        // A listener has to exist, or nothing can ever report this payment. It does
+        // not need a receiving number: that is only how a customer is told where to
+        // send money, and payTo() leaves out a listener that has none.
+        $listening = Db::row("SELECT COUNT(*) c FROM devices WHERE merchant_id = ? AND status = 'active'", [(int) $m['id']]);
+        if ((int) $listening['c'] === 0) {
             return ['error' => ['code' => 'no_device', 'message' => 'No listener phone is set up for this merchant yet.']];
         }
 
@@ -239,8 +243,8 @@ class Gateway
         // They may have paid before asking. Money already sitting unmatched
         // under this number, for this amount, is theirs.
         $early = Db::row(
-            "SELECT id FROM payments WHERE merchant_id = ? AND status = 'unmatched' AND kind = 'credit' AND reversed = 0 AND payer_key = ? AND amount = ? AND currency = ? AND received_at > ? ORDER BY id DESC LIMIT 1",
-            [(int) $m['id'], $key, $amount, $m['currency'], date('Y-m-d H:i:s', time() - self::INTENT_HOURS * 3600)]
+            "SELECT id FROM payments WHERE merchant_id = ? AND status = 'unmatched' AND kind = 'credit' AND reversed = 0 AND payer_key = ? AND amount = ? AND received_at > ? ORDER BY id DESC LIMIT 1",
+            [(int) $m['id'], $key, $amount, date('Y-m-d H:i:s', time() - self::INTENT_HOURS * 3600)]
         );
         if ($early) {
             self::matchPayment((int) $early['id']);
@@ -484,8 +488,8 @@ class Gateway
             return false;
         }
         $intents = Db::rows(
-            "SELECT * FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? AND currency = ? ORDER BY id DESC",
-            [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount'], $pay['currency']]
+            "SELECT * FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? ORDER BY id DESC",
+            [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount']]
         );
         if (!$intents) {
             self::hold($pay['id'], self::knownReferences($pay['merchant_id'], $pay['payer_key']) ? 'known_payer_no_intent' : 'no_waiting_intent');
@@ -512,7 +516,6 @@ class Gateway
                 || (int) $pay['reversed'] !== 0 || $intent['status'] !== 'waiting'
                 || (int) $intent['payment_id'] !== 0 || $intent['expires_at'] <= self::now()
                 || (int) $pay['merchant_id'] !== (int) $intent['merchant_id']
-                || $pay['currency'] !== $intent['currency']
                 || abs((float) $pay['amount'] - (float) $intent['amount']) >= 0.005
                 || $pay['payer_key'] === '' || !hash_equals($pay['payer_key'], $intent['payer_key'])) {
                 $pdo->rollBack();
@@ -520,7 +523,7 @@ class Gateway
             }
             $nameCheck = Parser::nameMatches($intent['payer_name'], $pay['payer_name']);
             if ($rule === 'number') {
-                $candidates = Db::rows("SELECT reference FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? AND currency = ? FOR UPDATE", [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount'], $pay['currency']]);
+                $candidates = Db::rows("SELECT reference FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? FOR UPDATE", [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount']]);
                 if (count(array_unique(array_column($candidates, 'reference'))) > 1) {
                     self::hold($pay['id'], 'ambiguous_intents');
                     $pdo->commit();
@@ -582,8 +585,8 @@ class Gateway
         if ($reference === '' || strlen($reference) > 100) {
             return ['error' => ['code' => 'reference_required', 'message' => 'A reference is required.']];
         }
-        if ($pay['kind'] !== 'credit' || $pay['currency'] !== $m['currency']) {
-            return ['error' => ['code' => 'needs_review', 'message' => 'Only a parsed credit in the merchant currency can be assigned.']];
+        if ($pay['kind'] !== 'credit') {
+            return ['error' => ['code' => 'needs_review', 'message' => 'Only a payment that was read as money coming in can be assigned.']];
         }
         if ((int) $pay['reversed'] === 1) {
             return ['error' => ['code' => 'reversed', 'message' => 'This payment was reversed by the network.']];
@@ -653,8 +656,11 @@ class Gateway
         if ($pay['payer_key'] === '' || !hash_equals($pay['payer_key'], $intent['payer_key'])) {
             return $fail('not_yours', 'The paying number could not be verified for this purchase. Please contact your provider.');
         }
-        if ($pay['currency'] !== $intent['currency'] || abs((float) $pay['amount'] - (float) $intent['amount']) >= 0.005) {
-            return $fail('amount_mismatch', 'That payment does not match the price and currency you chose. Please contact your provider.');
+        // The amount decides. The receipt's currency is whatever the network wrote on
+        // money that landed in the merchant's own account, so it is recorded and shown
+        // rather than required to equal the label on their profile.
+        if (abs((float) $pay['amount'] - (float) $intent['amount']) >= 0.005) {
+            return $fail('amount_mismatch', 'That payment does not match the price you chose. Please contact your provider.');
         }
         if ($pay['status'] === 'matched') {
             // Claiming twice gives the same answer, never a second credit.

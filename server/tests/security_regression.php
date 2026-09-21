@@ -101,8 +101,15 @@ check($oversizedReceipt['kind'] === 'unread' && $oversizedReceipt['amount'] === 
 intent(1); payment(1, '775999999');
 check(!Gateway::matchPayment(1), 'Equal amount must not match a different payer number.');
 check(Db::row('SELECT status FROM intents WHERE id = 1')['status'] === 'waiting', 'Unrelated payer changed intent.');
+// The owner's rule, 2026-09-21: the money lands in an account he owns, so a
+// receipt's currency is his own by definition and only ever described what
+// arrived. The amount decides, the number binds, the name confirms. The currency
+// read from the message is still stored and shown, so an unexpected one is
+// visible rather than silently treated as equal.
 resetData(); intent(1); payment(1, '772123456', 'GHS');
-check(!Gateway::matchPayment(1), 'Equal amount and number must not cross currencies.');
+check(Gateway::matchPayment(1), 'A receipt in another currency still matches on amount and number.');
+check(Db::row('SELECT currency FROM payments WHERE id = 1')['currency'] === 'GHS', 'The currency that arrived is kept as it was read.');
+check(Db::row('SELECT currency FROM intents WHERE id = 1')['currency'] === 'UGX', 'The intent keeps the currency it was priced in.');
 resetData(); intent(1); intent(2, '772123456', 'customer-b'); payment(1);
 check(!Gateway::matchPayment(1), 'Newest competing reference must not win automatically.');
 check(Db::row('SELECT hold_reason FROM payments WHERE id = 1')['hold_reason'] === 'ambiguous_intents', 'Ambiguity must be reviewable.');
