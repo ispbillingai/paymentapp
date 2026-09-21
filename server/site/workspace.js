@@ -1211,17 +1211,17 @@
       event.preventDefault();
       const button = el('webhook-form').querySelector('button[type=submit]');
       show('webhook-form-error', '');
-      const password = await confirmPassword('Change your webhook address',
-        'The new address has to answer a verification request before it is saved, which happens as soon as you confirm.',
-        'Verify and save');
-      if (!password) return;
+      show('webhook-form-ok', '');
       button.disabled = true;
       const was = button.textContent;
       button.textContent = 'Verifying…';
       try {
-        const data = await post('/v1/portal/webhook', {webhook_url: el('webhook-url').value.trim(), password, merchant_id: scope.id});
+        const data = await post('/v1/portal/webhook', {webhook_url: el('webhook-url').value.trim(), merchant_id: scope.id});
         el('webhook-url').value = data.webhook_url;
         show('webhook-form-error', '');
+        show('webhook-form-ok', data.verified === 'challenge'
+          ? 'Saved. The address answered the verification request.'
+          : 'Saved. The address is reachable and accepted the request.');
       } catch (e) {
         show('webhook-form-error', e.message);
       } finally {

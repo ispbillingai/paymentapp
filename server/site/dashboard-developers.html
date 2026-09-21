@@ -14,6 +14,8 @@
 </form>
 <div class="credential-reveal" id="secret-reveal" hidden><p class="micro-label">SIGNING SECRET — SHOWN ONCE</p><code id="secret-value"></code><div class="button-row"><button class="copy-button" type="button" data-copy="secret-value">Copy secret</button></div><p>Verify every delivery signature against this value. Deliveries already in flight were signed with the previous secret.</p></div>
 <p id="webhook-form-error" class="form-error" role="alert" hidden></p>
+<p id="webhook-form-ok" class="form-ok" role="status" hidden></p>
+<p class="form-note">Using the ISP Ledger billing panel? You do not need to type an address here. In the panel open Payment Gateway, Direct Number, choose <strong>I already have an account</strong> and paste your API key: the panel sets its own address and collects the signing secret for you.</p>
 </section>
 
 <section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Recent deliveries</h2><p>The last 30 attempts, including retries.</p></div><button id="webhooks-refresh" class="copy-button" type="button">Refresh</button></div>

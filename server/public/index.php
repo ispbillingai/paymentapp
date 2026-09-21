@@ -564,10 +564,12 @@ try {
      */
     if ($path === '/v1/portal/webhook' && $method === 'POST') {
         $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
-        $in = body(); requireTextFields($in, ['webhook_url', 'password', 'merchant_id']);
+        // No password here. Changing the address reveals nothing: the signing secret
+        // stays where it is, and an address that cannot verify signatures gains
+        // nothing from receiving events. Keys and the secret still ask for it.
+        $in = body(); requireTextFields($in, ['webhook_url', 'merchant_id']);
         $merchant = $targetMerchant($user, $in);
         if (!$merchant) fail('no_merchant', 'Webhook delivery is configured on a merchant account.', 409);
-        $confirmPassword($user, $in);
         $url = trim((string) ($in['webhook_url'] ?? ''));
         if (!filter_var($url, FILTER_VALIDATE_URL)) fail('bad_request', 'Enter the full https address that should receive events.');
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
@@ -588,11 +590,22 @@ try {
         $challenge = bin2hex(random_bytes(16));
         $res = Gateway::httpPost($url, json_encode(['type' => 'challenge', 'challenge' => $challenge, 'nonce' => '']), ['Content-Type: application/json', 'X-Gateway-Event: challenge'], 10);
         $echo = json_decode($res['body'], true);
-        if ($res['code'] !== 200 || !is_array($echo) || !is_string($echo['challenge'] ?? null) || !hash_equals($challenge, $echo['challenge'])) {
-            fail('challenge_failed', 'That address did not answer the verification request. Check it is live, then try again.', 422);
+        $echoed = $res['code'] === 200 && is_array($echo) && is_string($echo['challenge'] ?? null) && hash_equals($challenge, $echo['challenge']);
+        // Echoing the challenge is the full proof. An address that simply accepts the
+        // request with a 2xx is taken as reachable and saved too: this is the
+        // merchant's own account, and nothing is issued by saving it. What is refused
+        // is an address that cannot be reached or that turns the request away, and the
+        // reason given is what it actually answered, not a guess.
+        $accepted = $res['code'] >= 200 && $res['code'] < 300;
+        if (!$echoed && !$accepted) {
+            $code = (int) $res['code'];
+            $why = $code === 0 ? 'It could not be reached at all: check the address, its certificate, and that it is open to the internet.'
+                : ($code === 401 || $code === 403 ? 'It answered HTTP ' . $code . ', which means it is there but refused the request. An ISP Ledger billing panel refuses until it is linked from its own side: in the panel open Payment Gateway, Direct Number, and link this account with your API key. That sets this address for you.'
+                : 'It answered HTTP ' . $code . ' instead of 200.');
+            fail('challenge_failed', 'That address did not verify. ' . $why, 422);
         }
         Db::run("UPDATE merchants SET webhook_url = ? WHERE id = ?", [$url, (int) $merchant['id']]);
-        out(['ok' => true, 'webhook_url' => $url]);
+        out(['ok' => true, 'webhook_url' => $url, 'verified' => $echoed ? 'challenge' : 'reachable']);
     }
 
     /** A new signing secret, shown once. Existing deliveries in flight keep the old one. */
@@ -741,6 +754,42 @@ try {
     $m = Gateway::merchantByApiKey(bearerKey());
     if (!$m) {
         fail('unauthorized', 'A valid API key is required.', 401);
+    }
+
+    /**
+     * A billing panel joining an account that already exists, using that account's
+     * API key. The panel names its own webhook and a nonce it has just made; the
+     * gateway calls the webhook back with that nonce, which the panel answers only
+     * because it started this. The address is then saved and a fresh signing secret
+     * is returned, so the owner never types an address or copies a secret by hand.
+     *
+     * The echo is required here, unlike a save from the workspace, because this call
+     * hands out the signing secret.
+     */
+    if ($path === '/v1/link' && $method === 'POST') {
+        $in = body(); requireTextFields($in, ['webhook_url', 'nonce']);
+        $url = trim((string) ($in['webhook_url'] ?? ''));
+        if (!filter_var($url, FILTER_VALIDATE_URL)) fail('bad_request', 'webhook_url is required.');
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if ($scheme !== 'https' && !($scheme === 'http' && Config::get('allow_insecure_webhooks', false))) fail('https_required', 'The webhook address must use https.');
+        try {
+            WebhookTarget::resolve($url, (bool) Config::get('allow_insecure_webhooks', false));
+        } catch (InvalidArgumentException $e) {
+            fail('bad_webhook_host', 'Use a publicly reachable webhook address without URL credentials or fragments.');
+        }
+        if (Db::row("SELECT id FROM merchants WHERE webhook_url = ? AND id <> ?", [$url, (int) $m['id']])) {
+            fail('webhook_in_use', 'Another merchant account already delivers to that address.', 409);
+        }
+        $challenge = bin2hex(random_bytes(16));
+        $res = Gateway::httpPost($url, json_encode(['type' => 'challenge', 'challenge' => $challenge, 'nonce' => substr((string) ($in['nonce'] ?? ''), 0, 64)]), ['Content-Type: application/json', 'X-Gateway-Event: challenge'], 10);
+        $echo = json_decode($res['body'], true);
+        if ($res['code'] !== 200 || !is_array($echo) || !is_string($echo['challenge'] ?? null) || !hash_equals($challenge, $echo['challenge'])) {
+            fail('challenge_failed', 'The billing panel did not answer the verification request (HTTP ' . (int) $res['code'] . ').', 422);
+        }
+        $secret = 'whsec_' . bin2hex(random_bytes(24));
+        Db::run("UPDATE merchants SET webhook_url = ?, webhook_secret = ? WHERE id = ?", [$url, $secret, (int) $m['id']]);
+        out(['merchant_id' => $m['public_id'], 'name' => $m['name'], 'country' => $m['country'], 'dial_code' => $m['dial_code'],
+             'currency' => $m['currency'], 'webhook_url' => $url, 'webhook_secret' => $secret]);
     }
 
     if ($path === '/v1/me' && $method === 'GET') {
