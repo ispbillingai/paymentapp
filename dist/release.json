@@ -1,5 +1,5 @@
 {
-  "version_code": 10,
-  "version_name": "1.4.5",
-  "notes": "Adding a sender name now has an Add name button, and the names you add appear in a list you can remove from. M-Pesa is no longer a built-in tick box: add MPESA yourself, exactly as your phone shows it."
+  "version_code": 11,
+  "version_name": "1.4.6",
+  "notes": "One sender list: built-in networks and your own names together, each with a tick box and Remove. A message the service does not record is no longer reported as delivered; the log says what happened and why. The phone also keeps the service's copy of its sender list in step."
 }

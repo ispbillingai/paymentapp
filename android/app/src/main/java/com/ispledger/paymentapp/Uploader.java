@@ -18,12 +18,23 @@ final class Uploader {
 
     private static final Object LOCK = new Object();
 
+    /**
+     * What the service said became of the last message: "recorded", "duplicate",
+     * "unknown_sender" and so on, with its explanation. A message the service did
+     * not record is settled, so the phone stops holding it, but it must not be
+     * written down as delivered.
+     */
+    private static String lastResult = "";
+    private static String lastReason = "";
+
     /** "" when the dashboard answered and accepted the key, otherwise a sentence for the owner. */
     static String ping(Context c) {
         try {
             JSONObject body = new JSONObject();
             body.put("ping", 1);
             body.put("version", BuildConfig.VERSION_NAME);
+            // Keep the service's copy of this phone's sender list in step with ours.
+            body.put("senders", Prefs.senders(c));
             int code = post(c, body);
             return explain(c, code);
         } catch (Exception e) {
@@ -53,7 +64,7 @@ final class Uploader {
                     int code = post(c, body);
                     if (code == 200) {
                         box.delivered(i.id);
-                        box.note("Payment message from " + i.sender + " delivered");
+                        box.note(outcome(i.sender));
                         Prefs.contactOk(c);
                     } else {
                         box.failed(i.id);
@@ -67,6 +78,18 @@ final class Uploader {
                 }
             }
         }
+    }
+
+    /** What to write in the activity log, in the owner's words, for what actually happened. */
+    private static String outcome(String sender) {
+        if ("duplicate".equals(lastResult)) {
+            return "Payment from " + sender + " was already recorded";
+        }
+        if (lastResult.startsWith("ignored") || "unknown_sender".equals(lastResult) || "not_a_payment".equals(lastResult)) {
+            return "NOT recorded: message from " + sender
+                    + (lastReason.isEmpty() ? " was not accepted by the payment service" : ". " + lastReason);
+        }
+        return "Payment from " + sender + " recorded";
     }
 
     private static String explain(Context c, int code) {
@@ -106,9 +129,15 @@ final class Uploader {
             }
             int code = con.getResponseCode();
             String response = drain(code >= 400 ? con.getErrorStream() : con.getInputStream());
+            lastResult = "";
+            lastReason = "";
             if (code == 200) {
-                try { if (!new JSONObject(response).optBoolean("ok", false)) return 422; }
-                catch (Exception invalid) { return 502; }
+                try {
+                    JSONObject parsed = new JSONObject(response);
+                    if (!parsed.optBoolean("ok", false)) return 422;
+                    lastResult = parsed.optString("result", "");
+                    lastReason = parsed.optString("reason", "");
+                } catch (Exception invalid) { return 502; }
             }
             return code;
         } finally {

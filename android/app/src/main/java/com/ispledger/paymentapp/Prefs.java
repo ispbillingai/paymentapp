@@ -32,6 +32,16 @@ final class Prefs {
                 .putString("senders", senders.trim().isEmpty() ? DEFAULT_SENDERS : senders.trim()).apply();
     }
 
+    /** Built-in networks the owner took off the list, by label. */
+    static String removedNetworks(Context c) { return sp(c).getString("removedNetworks", ""); }
+    static void removedNetworks(Context c, String value) { sp(c).edit().putString("removedNetworks", value.trim()).apply(); }
+
+    /** Sender names the owner added themselves, whether switched on or not. */
+    static String customSenders(Context c) { return sp(c).getString("customSenders", ""); }
+    static void customSenders(Context c, String value) { sp(c).edit().putString("customSenders", value.trim()).apply(); }
+    /** Has this phone ever written that list? Tells a fresh install from an empty one. */
+    static boolean customSendersSet(Context c) { return sp(c).contains("customSenders"); }
+
     static boolean paused(Context c) { return sp(c).getBoolean("paused", false); }
     static void paused(Context c, boolean value) { sp(c).edit().putBoolean("paused", value).apply(); }
     static long lastOkAt(Context c) { return sp(c).getLong("lastOkAt", 0); }

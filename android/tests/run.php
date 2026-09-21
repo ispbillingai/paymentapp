@@ -52,6 +52,7 @@ $s = str_replace(["package com.ispledger.paymentapp;\n", 'final class Senders'],
 $s = str_replace("\n    static ", "\n    public static ", $s);
 file_put_contents($work . '/Senders.java', $s);
 copy(__DIR__ . '/SenderTest.java', $work . '/SenderTest.java');
+copy(__DIR__ . '/SenderListCheck.java', $work . '/SenderListCheck.java');
 
 // ---------------------------------------------------------------------- build, run
 $home = getenv('JAVA_HOME');
@@ -59,26 +60,37 @@ $bin = $home ? rtrim(str_replace('\\', '/', $home), '/') . '/bin/' : '';
 $javac = $bin . 'javac';
 $java = $bin . 'java';
 
-$run = static function ($command) use (&$output) {
+$run = static function ($command) {
     $output = [];
     $code = 0;
     exec($command . ' 2>&1', $output, $code);
-    return [$code, implode("\n", $output)];
+    return [$code, implode("
+", $output)];
 };
 
 [$code, $out] = $run(escapeshellarg($javac) . ' -nowarn -d ' . escapeshellarg($work . '/out')
-    . ' ' . escapeshellarg($work . '/Senders.java') . ' ' . escapeshellarg($work . '/SenderTest.java'));
+    . ' ' . escapeshellarg($work . '/Senders.java')
+    . ' ' . escapeshellarg($work . '/SenderTest.java')
+    . ' ' . escapeshellarg($work . '/SenderListCheck.java'));
 if ($code !== 0) {
-    fwrite(STDERR, $out . "\n");
-    $stop('The test did not compile. Is javac on PATH, or JAVA_HOME set to a JDK?');
+    fwrite(STDERR, $out . "
+");
+    $stop('The tests did not compile. Is javac on PATH, or JAVA_HOME set to a JDK?');
 }
 
-[$code, $out] = $run(escapeshellarg($java) . ' -cp ' . escapeshellarg($work . '/out') . ' SenderTest');
-echo $out . "\n";
+$failed = 0;
+foreach (['SenderTest', 'SenderListCheck'] as $test) {
+    [$ran, $said] = $run(escapeshellarg($java) . ' -cp ' . escapeshellarg($work . '/out') . ' ' . $test);
+    echo $said . "
+";
+    if ($ran !== 0) {
+        $failed = 1;
+    }
+}
 
 // leave nothing behind
 foreach (glob($work . '/out/*') as $file) @unlink($file);
 foreach (glob($work . '/*') as $file) is_dir($file) ? @rmdir($file) : @unlink($file);
 @rmdir($work);
 
-exit($code === 0 ? 0 : 1);
+exit($failed);

@@ -634,6 +634,16 @@ try {
             "UPDATE devices SET last_seen = ?, last_ip = ?, app_version = IF(? = '', app_version, ?) WHERE id = ?",
             [date('Y-m-d H:i:s'), substr(client_ip(), 0, 45), $version, $version, (int) $device['id']]
         );
+        // The phone tells us the senders it is watching, so the two lists cannot drift
+        // apart and quietly drop a payment. It grants nothing: this device already
+        // states the sender of every message it reports.
+        if (isset($in['senders']) && is_string($in['senders']) && trim($in['senders']) !== '' && $device['provider'] === 'other') {
+            $list = substr(trim($in['senders']), 0, 255);
+            if ($list !== $device['extra_senders']) {
+                Db::run("UPDATE devices SET extra_senders = ? WHERE id = ?", [$list, (int) $device['id']]);
+                $device['extra_senders'] = $list;
+            }
+        }
         $text = (string) ($in['text'] ?? '');
         if ($text === '') {
             out(['ok' => true, 'result' => 'pong']);
@@ -643,7 +653,17 @@ try {
         $sent = (float) ($in['sentStamp'] ?? 0);
         $sent = $sent > 9999999999 ? $sent / 1000 : $sent;
         $sent = ($sent > 1500000000 && $sent < time() + 86400) ? (int) $sent : null;
-        out(['ok' => true, 'result' => Gateway::ingest($device, trim((string) ($in['from'] ?? '')), $text, $sent)]);
+        $result = Gateway::ingest($device, trim((string) ($in['from'] ?? '')), $text, $sent);
+        // Recorded or not, the message is settled and the phone should stop holding it.
+        // ok says that; result and reason say what actually became of it.
+        $reasons = [
+            'unknown_sender' => 'This listener is not set up to accept that sender name. Add it on the phone, or in Listener devices.',
+            'not_a_payment'  => 'That message was not a payment confirmation this service could read.',
+            'ignored'        => 'That message could not be read.',
+        ];
+        $reply = ['ok' => true, 'result' => $result];
+        if (isset($reasons[$result])) $reply['reason'] = $reasons[$result];
+        out($reply);
     }
 
     // ------------------------------------------------------------ joining

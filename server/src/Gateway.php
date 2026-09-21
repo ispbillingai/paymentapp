@@ -301,11 +301,14 @@ class Gateway
         // sender which also appears in a built-in country list.
         $provider = Parser::providerForSender($sender, $device['provider'] === 'other' ? '' : $device['dial_code'], $extra);
         if ($provider === '' || $provider !== $device['provider']) {
-            return 'ignored';
+            // The phone let it through but this listener is not set up to accept that
+            // sender. Saying so is the difference between the owner seeing the problem
+            // and the message vanishing with a tick beside it.
+            return 'unknown_sender';
         }
         $p = Parser::parseMessage($provider, $body, (string) ($device['merchant_currency'] ?? ''));
         if ($p['kind'] === 'other') {
-            return 'ignored';
+            return 'not_a_payment';
         }
         $mid = (int) $device['merchant_id'];
         $rkey = $device['receiving_key'] !== '' ? $device['receiving_key'] : 'D' . (int) $device['id'];
