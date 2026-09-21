@@ -261,3 +261,5 @@ button.scope-add.first{border-top:0}
 .message-read small{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .message-read b{font-size:13px}
 .message-actions{margin-top:12px}
+.uptime-line{font-size:13px;margin:4px 0}
+.uptime-line small{color:var(--muted);font-size:12px}

@@ -1221,9 +1221,54 @@
         button.disabled = false;
       }
     });
-    el('devices-refresh').onclick = () => list();
-    scope.onchange = () => { loadProviders(); list(); };
+    /**
+     * When each phone was silent. A phone reports every five minutes, so anything
+     * longer is a real gap, and the ones still going on are named as such.
+     */
+    async function uptime() {
+      try {
+        const data = await api('/v1/portal/uptime?days=' + el('uptime-days').value);
+        const summary = el('uptime-summary');
+        summary.replaceChildren();
+        if (!data.devices.length) {
+          const note = document.createElement('p');
+          note.className = 'portal-empty quiet';
+          note.textContent = 'No phone has reported in this period.';
+          summary.append(note);
+        } else {
+          data.devices.forEach(row => {
+            const line = document.createElement('p');
+            line.className = 'uptime-line';
+            const name = document.createElement('b');
+            name.textContent = row.device || 'Listener';
+            const detail = document.createElement('small');
+            detail.textContent = ' reported ' + row.reports + ' times, from ' + when(row.first_seen) + ' to ' + when(row.last_seen);
+            line.append(name, detail);
+            summary.append(line);
+          });
+        }
+        table(el('uptime-records'), [
+          {label: 'Phone', key: 'device'},
+          {label: 'Silent from', cell: row => when(row.from)},
+          {label: 'Until', cell: row => row.ongoing ? 'still silent' : when(row.to)},
+          {label: 'For', cell: row => row.minutes < 60 ? row.minutes + ' min'
+            : Math.floor(row.minutes / 60) + 'h ' + (row.minutes % 60) + 'm'},
+          {label: '', cell: row => row.ongoing ? chip('Now', 'bad') : chip('Recovered', 'warn')},
+        ], data.outages, {
+          title: 'No gaps in this period',
+          body: 'Every phone kept reporting at least every ' + data.gap_minutes + ' minutes.',
+        });
+        problem('');
+      } catch (e) {
+        problem(e.message);
+      }
+    }
+    el('uptime-days').onchange = () => uptime();
+
+    el('devices-refresh').onclick = () => { list(); uptime(); };
+    scope.onchange = () => { loadProviders(); list(); uptime(); };
     list();
+    uptime();
   };
 
   // --------------------------------------------------------------- developers

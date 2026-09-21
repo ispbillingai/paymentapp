@@ -299,6 +299,67 @@ class Gateway
      */
     public static $lastRead = [];
 
+    /** A silence longer than this is an outage, not the gap between two reports. */
+    const GAP_MINUTES = 12;
+
+    /**
+     * Notes that this listener is reporting. Extends the stretch it is already in,
+     * or opens a new one after a silence, so the history stays small: a phone that
+     * never drops out is a single row however long it runs.
+     */
+    public static function reporting(array $device)
+    {
+        $now = self::now();
+        try {
+            $last = Db::row("SELECT id, to_at FROM device_uptime WHERE device_id = ? ORDER BY id DESC LIMIT 1", [(int) $device['id']]);
+            if ($last && strtotime($last['to_at']) >= time() - self::GAP_MINUTES * 60) {
+                Db::run("UPDATE device_uptime SET to_at = ?, reports = reports + 1 WHERE id = ?", [$now, (int) $last['id']]);
+                return;
+            }
+            Db::run("INSERT INTO device_uptime (merchant_id, device_id, from_at, to_at, reports) VALUES (?,?,?,?,1)",
+                [(int) $device['merchant_id'], (int) $device['id'], $now, $now]);
+        } catch (Throwable $e) {
+            // History is worth having, never worth losing a payment over.
+            error_log('device_uptime: ' . $e->getMessage());
+        }
+        if (random_int(1, 500) === 1) {
+            Db::run("DELETE FROM device_uptime WHERE to_at < ?", [date('Y-m-d H:i:s', time() - 90 * 86400)]);
+        }
+    }
+
+    /**
+     * When a listener was not reporting, newest first. Built from the gaps between
+     * stretches, plus the silence since the last one if it is still going on.
+     */
+    public static function outages($merchantId, $deviceId = 0, $sinceDays = 7)
+    {
+        $args = [(int) $merchantId, date('Y-m-d H:i:s', time() - $sinceDays * 86400)];
+        $where = 'merchant_id = ? AND to_at > ?';
+        if ($deviceId) { $where .= ' AND device_id = ?'; $args[] = (int) $deviceId; }
+        $rows = Db::rows("SELECT device_id, from_at, to_at FROM device_uptime WHERE $where ORDER BY device_id, id", $args);
+        $out = [];
+        $previous = [];
+        foreach ($rows as $row) {
+            $id = (int) $row['device_id'];
+            if (isset($previous[$id])) {
+                $gap = strtotime($row['from_at']) - strtotime($previous[$id]);
+                if ($gap > self::GAP_MINUTES * 60) {
+                    $out[] = ['device_id' => $id, 'from' => $previous[$id], 'to' => $row['from_at'], 'minutes' => (int) round($gap / 60), 'ongoing' => false];
+                }
+            }
+            $previous[$id] = $row['to_at'];
+        }
+        // Still quiet right now counts as an outage that has not ended.
+        foreach ($previous as $id => $lastSeen) {
+            $silent = time() - strtotime($lastSeen);
+            if ($silent > self::GAP_MINUTES * 60) {
+                $out[] = ['device_id' => $id, 'from' => $lastSeen, 'to' => null, 'minutes' => (int) round($silent / 60), 'ongoing' => true];
+            }
+        }
+        usort($out, static fn($a, $b) => strcmp($b['from'], $a['from']));
+        return $out;
+    }
+
     /**
      * Files a reported message, whatever became of it. A message the gateway could
      * not read used to leave no trace, so nobody could see what a network actually

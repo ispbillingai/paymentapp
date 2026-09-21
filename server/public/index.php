@@ -257,6 +257,27 @@ try {
      * "I paid and nothing happened" answerable, and what a new network's format is
      * worked out from.
      */
+    /** When each listener was not reporting, so "it was on and it did not work" has an answer. */
+    if ($path === '/v1/portal/uptime' && $method === 'GET') {
+        $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
+        $where=portalScope($user);
+        $days=min(30,max(1,(int)($_GET['days']??7)));
+        $merchantId=$user['role']==='owner'?(int)($user['acting_merchant_id']??0):(int)$user['merchant_id'];
+        $names=[];
+        foreach(Db::rows("SELECT id,label FROM devices WHERE $where") as $row) $names[(int)$row['id']]=$row['label'];
+        $outages=[];
+        if($merchantId){
+            foreach(Gateway::outages($merchantId,0,$days) as $gap){
+                $gap['device']=$names[$gap['device_id']]??'';
+                $outages[]=$gap;
+            }
+        }
+        $stretches=Db::rows("SELECT device_id, MIN(from_at) first_seen, MAX(to_at) last_seen, SUM(reports) reports FROM device_uptime
+            WHERE $where AND to_at > ? GROUP BY device_id",[date('Y-m-d H:i:s',time()-$days*86400)]);
+        foreach($stretches as $i=>$row) $stretches[$i]['device']=$names[(int)$row['device_id']]??'';
+        out(['days'=>$days,'gap_minutes'=>Gateway::GAP_MINUTES,'outages'=>array_slice($outages,0,100),'devices'=>$stretches]);
+    }
+
     if ($path === '/v1/portal/messages' && $method === 'GET') {
         $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
         $where=portalScope($user); $args=[];
@@ -659,6 +680,7 @@ try {
             "UPDATE devices SET last_seen = ?, last_ip = ?, app_version = IF(? = '', app_version, ?) WHERE id = ?",
             [date('Y-m-d H:i:s'), substr(client_ip(), 0, 45), $version, $version, (int) $device['id']]
         );
+        Gateway::reporting($device);
         // The phone tells us the senders it is watching, so the two lists cannot drift
         // apart and quietly drop a payment. It grants nothing: this device already
         // states the sender of every message it reports.

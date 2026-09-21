@@ -133,6 +133,21 @@ CREATE TABLE IF NOT EXISTS device_messages (
     KEY idx_msg_age (received_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- One row per unbroken stretch of a listener reporting in. The phone reports
+-- every five minutes; a gap longer than GAP_MINUTES closes a row and the next
+-- report opens another, so the spaces between rows are exactly the outages.
+CREATE TABLE IF NOT EXISTS device_uptime (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    merchant_id INT NOT NULL,
+    device_id INT NOT NULL,
+    from_at DATETIME NOT NULL,
+    to_at DATETIME NOT NULL,
+    reports INT NOT NULL DEFAULT 1,
+    KEY idx_uptime_device (device_id, id),
+    KEY idx_uptime_merchant (merchant_id, to_at),
+    KEY idx_uptime_age (to_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS payers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     merchant_id INT NOT NULL,
