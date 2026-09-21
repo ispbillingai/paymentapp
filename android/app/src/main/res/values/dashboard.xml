@@ -19,7 +19,7 @@
   <string name="dash_16">Setup checklist</string>
   <string name="dash_17" />
   <string name="dash_18">Review device health</string>
-  <string name="dash_19">Enter your device key, then test the connection.</string>
+  <string name="dash_19">Enter this phone’s device key, then test the connection. It is 40 letters and numbers, not your sk_live_ API key.</string>
   <string name="dash_20">Delivery queue</string>
   <string name="dash_21">Pending messages stay on this phone until the gateway acknowledges them. Message bodies are hidden.</string>
   <string name="dash_22" />

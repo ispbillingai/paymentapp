@@ -10,7 +10,7 @@
     <string name="help_url">Leave this alone unless support asks you to change it.</string>
     <string name="advanced">Advanced</string>
     <string name="label_key">Key for this phone</string>
-    <string name="hint_key">Paste the key from the Direct Number page</string>
+    <string name="hint_key">Paste this phone’s device key</string>
     <string name="label_senders">Mobile money sender names</string>
     <string name="help_pick_networks">Tick the networks this phone receives payments on.</string>
     <string name="label_sender_extra">Another sender name</string>
@@ -34,7 +34,7 @@
     <string name="btn_allow_battery">Keep running in the background</string>
     <string name="testing">Checking the connection</string>
     <string name="err_url">The address must start with https://</string>
-    <string name="err_key">The key is 40 characters long. Copy it from the Direct Number page in your dashboard.</string>
+    <string name="err_key">A device key is 40 letters and numbers, and is not your sk_live_ API key. Add this phone as a listener device to get one.</string>
     <string name="state_setup">Not set up yet. In your dashboard open Settings, Payment Gateway, DirectNumber. Add this phone, then paste its key into the box below.</string>
     <string name="state_no_sms">Almost ready. Tap the button below so this app can see payment messages when they arrive.</string>
     <string name="state_waiting">Saved. Waiting for the first contact.</string>
@@ -65,7 +65,7 @@
     <string name="notifications_ready">Listener notifications enabled</string>
     <string name="permissions_note">Only configured sender names are forwarded. Your inbox stays private.</string>
     <string name="settings_heading">Device connection</string>
-    <string name="settings_caption">Pair once with the device key from your billing dashboard. No account password needed.</string>
+    <string name="settings_caption">Pair once with this phone’s own device key. Get it by adding this phone as a listener device, either at ispbillingpay.com under Listener devices, or in your billing panel under Payment Gateway, Direct Number. It is shown once, and it is not your sk_live_ API key.</string>
     <string name="settings_open">Edit connection settings</string>
     <string name="settings_close">Hide connection settings</string>
     <string name="show_pairing">Show device key</string>
