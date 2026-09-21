@@ -148,17 +148,39 @@ class Gateway
     public static function rotateDeviceKey(array $m, $publicId)
     {
         $key = bin2hex(random_bytes(20));
-        $n = Db::run("UPDATE devices SET key_hash = ?, status = 'active' WHERE merchant_id = ? AND public_id = ?", [hash('sha256', $key), (int) $m['id'], $publicId]);
+        // A deleted phone is not brought back to life by issuing it a key.
+        $n = Db::run("UPDATE devices SET key_hash = ?, status = 'active' WHERE merchant_id = ? AND public_id = ? AND status <> 'deleted'", [hash('sha256', $key), (int) $m['id'], $publicId]);
         return $n ? ['device_key' => $key] : null;
     }
 
     public static function revokeDevice(array $m, $publicId)
     {
-        $d = Db::row("SELECT id FROM devices WHERE merchant_id = ? AND public_id = ?", [(int) $m['id'], $publicId]);
+        $d = Db::row("SELECT id FROM devices WHERE merchant_id = ? AND public_id = ? AND status <> 'deleted'", [(int) $m['id'], $publicId]);
         if (!$d) {
             return false;
         }
         Db::run("UPDATE devices SET status = 'revoked' WHERE id = ? AND status <> 'revoked'", [(int) $d['id']]);
+        return true;
+    }
+
+    /**
+     * Takes a phone off the list for good.
+     *
+     * Revoking stops a phone working and leaves it on the list, which is right
+     * while you are still dealing with it and clutter once you are done. This
+     * removes it from every list instead. The row stays, marked deleted, because
+     * payments and messages already recorded name the phone that reported them,
+     * and a payment whose listener had vanished would be a payment that came
+     * from nowhere. Its key stops working either way: only an active device
+     * authenticates.
+     */
+    public static function deleteDevice(array $m, $publicId)
+    {
+        $d = Db::row("SELECT id FROM devices WHERE merchant_id = ? AND public_id = ? AND status <> 'deleted'", [(int) $m['id'], $publicId]);
+        if (!$d) {
+            return false;
+        }
+        Db::run("UPDATE devices SET status = 'deleted' WHERE id = ?", [(int) $d['id']]);
         return true;
     }
 

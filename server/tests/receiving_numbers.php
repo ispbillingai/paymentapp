@@ -119,4 +119,23 @@ $unnamed = Gateway::createDevice($ghana, ['provider' => 'other', 'extra_senders'
 check(($unnamed['device']['provider_label'] ?? '') === 'ZEEPAY', 'Unnamed, the sender name it listens for stands in.');
 check(count(Gateway::payTo(1)) === 2, 'Adding listeners does not change where customers pay.');
 
+// ------------------------------------------------- taking a phone off the list
+// A merchant row of its own, because authenticating a key joins to one.
+Db::run("INSERT INTO merchants (id, public_id, name, country, dial_code, currency, webhook_url, webhook_secret, status, created_at)
+         VALUES (1, 'mer_test', 'Test', 'ghana', '233', 'GHS', NULL, 's', 'active', '2026-09-01 00:00:00')", []);
+$spare = Gateway::createDevice($ghana, ['provider' => 'mtn_gh', 'label' => 'Old phone']);
+$spareId = $spare['device']['id'];
+check(Gateway::deviceByKey($spare['device_key']) !== null, 'A listener key works while the listener is listed.');
+check(Gateway::deleteDevice($other, $spareId) === false, 'One merchant cannot remove another merchant\'s phone.');
+check(Gateway::deleteDevice($ghana, $spareId) === true, 'A merchant can remove their own.');
+check(Gateway::deviceByKey($spare['device_key']) === null, 'A removed phone can no longer report anything.');
+check(Gateway::deleteDevice($ghana, $spareId) === false, 'Removing it again says there is nothing there.');
+check(Gateway::revokeDevice($ghana, $spareId) === false, 'And it cannot be revoked after the fact.');
+check(Gateway::rotateDeviceKey($ghana, $spareId) === null, 'Nor brought back by issuing it a key.');
+check(Db::row("SELECT status FROM devices WHERE public_id = ?", [$spareId])['status'] === 'deleted',
+    'The row stays, marked deleted, so payments it reported still name it.');
+$listed = array_column(Db::rows("SELECT public_id FROM devices WHERE merchant_id = 1 AND status <> 'deleted'"), 'public_id');
+check(!in_array($spareId, $listed, true) && count($listed) > 0,
+    'And it is gone from the list the dashboard shows, which still has the others.');
+
 echo "PASS: $checks checks. Numbers are separate from listeners, and issue nothing.\n";

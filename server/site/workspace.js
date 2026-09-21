@@ -1282,6 +1282,13 @@
             revoke.onclick = () => revokeDevice(row);
             group.append(rotate, revoke);
           }
+          // A phone can always be taken off the list, revoked or not.
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'copy-button danger';
+          remove.textContent = 'Remove';
+          remove.onclick = () => deleteDevice(row);
+          group.append(remove);
           return group;
         },
       },
@@ -1321,6 +1328,21 @@
       if (!password) return;
       try {
         await post('/v1/portal/devices/revoke', {device_id: device.id, password, merchant_id: device.merchant_id || scope.id});
+        list();
+      } catch (e) {
+        problem(e.message);
+      }
+    }
+
+    // Revoking leaves a phone on the list, which is right while you are still
+    // dealing with it. Once you are not, it is clutter.
+    async function deleteDevice(device) {
+      const password = await confirmPassword('Remove ' + device.label,
+        'It comes off this list and stops being able to report payments. Payments and messages it already reported are kept.',
+        'Remove listener');
+      if (!password) return;
+      try {
+        await post('/v1/portal/devices/delete', {device_id: device.id, password, merchant_id: device.merchant_id || scope.id});
         list();
       } catch (e) {
         problem(e.message);

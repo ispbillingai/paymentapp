@@ -241,7 +241,7 @@ try {
         $owner=$user['role']==='owner' && !$user['acting_merchant_id']; $where=portalScope($user);
         $totals=Db::rows("SELECT currency, COALESCE(SUM(amount),0) total FROM payments WHERE $where AND kind='credit' AND reversed=0 GROUP BY currency");
         $summary=Db::row("SELECT COALESCE(SUM(CASE WHEN kind='credit' AND reversed=0 THEN amount ELSE 0 END),0) total, SUM(status='matched') matched, SUM(status='unmatched') unmatched, MAX(currency) currency FROM payments WHERE $where");
-        $devices=Db::row("SELECT COUNT(*) total, SUM(status='active' AND last_seen>?) online FROM devices WHERE $where",[date('Y-m-d H:i:s',time()-900)]);
+        $devices=Db::row("SELECT COUNT(*) total, SUM(status='active' AND last_seen>?) online FROM devices WHERE $where AND status <> 'deleted'",[date('Y-m-d H:i:s',time()-900)]);
         $payments=Db::rows("SELECT payer_name,payer_msisdn,trx_id,provider,amount,currency,status,received_at FROM payments WHERE $where ORDER BY id DESC LIMIT 12");
         // The owner's own account has no merchant; while looking at one, that is the merchant shown.
         $shownId=$user['role']==='owner'?$user['acting_merchant_id']:$user['merchant_id'];
@@ -303,7 +303,7 @@ try {
         // deviceOut is what the API returns everywhere else, so the workspace shows the same fields.
         // Each row names its merchant, so a view across every merchant still says whose it is.
         $names=[]; $publicIds=[]; foreach(Db::rows("SELECT id,public_id,name FROM merchants") as $row){ $names[(int)$row['id']]=$row['name']; $publicIds[(int)$row['id']]=$row['public_id']; }
-        $devices=array_map(static function($d) use ($names,$publicIds){ return Gateway::deviceOut($d)+['merchant'=>$names[(int)$d['merchant_id']]??'','merchant_id'=>$publicIds[(int)$d['merchant_id']]??'']; },Db::rows("SELECT * FROM devices WHERE $where ORDER BY id DESC LIMIT 50"));
+        $devices=array_map(static function($d) use ($names,$publicIds){ return Gateway::deviceOut($d)+['merchant'=>$names[(int)$d['merchant_id']]??'','merchant_id'=>$publicIds[(int)$d['merchant_id']]??'']; },Db::rows("SELECT * FROM devices WHERE $where AND status <> 'deleted' ORDER BY id DESC LIMIT 50"));
         out(['devices'=>$devices,
           'webhooks'=>Db::rows("SELECT event_id,type,status,attempts,last_code,created_at FROM webhook_deliveries WHERE $where ORDER BY id DESC LIMIT 30"),
           'keys'=>array_map(static function($k) use ($names,$publicIds){ $id=(int)$k['merchant_id']; $k['merchant']=$names[$id]??''; $k['merchant_id']=$publicIds[$id]??''; return $k; },Db::rows("SELECT merchant_id,hint,status,last_used_at,created_at FROM api_keys WHERE $where ORDER BY id DESC LIMIT 30"))]);
@@ -478,7 +478,7 @@ try {
         $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
         if ($user['role'] !== 'owner') fail('forbidden', 'Only a platform owner can list merchants.', 403);
         out(['merchants' => Db::rows("SELECT m.public_id id, m.name, m.country, m.dial_code, m.currency, m.webhook_url, m.created_at,
-                (SELECT COUNT(*) FROM devices d WHERE d.merchant_id = m.id) devices,
+                (SELECT COUNT(*) FROM devices d WHERE d.merchant_id = m.id AND d.status <> 'deleted') devices,
                 (SELECT COUNT(*) FROM api_keys k WHERE k.merchant_id = m.id AND k.status = 'active') keys_active,
                 (SELECT COUNT(*) FROM payments p WHERE p.merchant_id = m.id) payments
             FROM merchants m ORDER BY m.id DESC LIMIT 200")]);
@@ -639,6 +639,19 @@ try {
         if (!$merchant) fail('no_merchant', 'This account has no listener devices.', 409);
         $confirmPassword($user, $in);
         Gateway::revokeDevice($merchant, (string) ($in['device_id'] ?? '')) ? out(['ok' => true]) : fail('not_found', 'Device not found.', 404);
+    }
+
+    /**
+     * Taking a phone off the list. It stops that phone working, like revoking,
+     * so it asks for the password the same way.
+     */
+    if ($path === '/v1/portal/devices/delete' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['device_id', 'password', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'This account has no listener devices.', 409);
+        $confirmPassword($user, $in);
+        Gateway::deleteDevice($merchant, (string) ($in['device_id'] ?? '')) ? out(['ok' => true]) : fail('not_found', 'Device not found.', 404);
     }
 
     /**
@@ -918,7 +931,7 @@ try {
     }
 
     if ($path === '/v1/devices' && $method === 'GET') {
-        out(['devices' => array_map(['Gateway', 'deviceOut'], Db::rows("SELECT * FROM devices WHERE merchant_id = ? ORDER BY id", [(int) $m['id']]))]);
+        out(['devices' => array_map(['Gateway', 'deviceOut'], Db::rows("SELECT * FROM devices WHERE merchant_id = ? AND status <> 'deleted' ORDER BY id", [(int) $m['id']]))]);
     }
     if ($path === '/v1/devices' && $method === 'POST') {
         reply(Gateway::createDevice($m, body()), 201);
@@ -944,6 +957,9 @@ try {
         }
         if ($seg[3] === 'revoke') {
             Gateway::revokeDevice($m, $seg[2]) ? out(['ok' => true]) : fail('not_found', 'Device not found.', 404);
+        }
+        if ($seg[3] === 'delete') {
+            Gateway::deleteDevice($m, $seg[2]) ? out(['ok' => true]) : fail('not_found', 'Device not found.', 404);
         }
     }
 
