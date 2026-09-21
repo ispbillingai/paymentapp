@@ -161,8 +161,40 @@
   let sessionStore, preferenceStore;
   try { sessionStore = sessionStorage; } catch (_) {}
   try { preferenceStore = localStorage; } catch (_) {}
+  /**
+   * The written copy follows the same rule as the figures. A country is named only
+   * when it is actually known, from the visitor's address or their own choice.
+   * When it is not, the page says nothing about any country at all, rather than
+   * guessing one or defaulting to a market the visitor may have nothing to do with.
+   * The neutral wording lives in the HTML and is kept here to restore it.
+   */
+  const copy = {};
+  ['hero-lead', 'coverage-lead'].forEach(id => {
+    const node = document.getElementById(id);
+    if (node) copy[id] = node.textContent;
+  });
+  function localiseCopy(country, known) {
+    const put = (id, text) => { const node = document.getElementById(id); if (node) node.textContent = text; };
+    if (!known || !country) {
+      put('hero-country', '');
+      put('hero-lead', copy['hero-lead']);
+      put('coverage-lead', copy['coverage-lead']);
+      return;
+    }
+    const name = nameOf(country);
+    const example = exampleFor(country);
+    const builtIn = example.primary !== 'Mobile money';
+    put('hero-country', ' IN ' + name.toUpperCase());
+    put('hero-lead', builtIn
+      ? 'Turn ' + example.primary + ' and ' + example.secondary + ' payments arriving on your own number in ' + name + ' into payments your billing system understands. Match receipts, automate activation and keep every transaction in view.'
+      : 'Turn mobile money arriving on your own number in ' + name + ' into payments your billing system understands, read in ' + example.currency + '. Match receipts, automate activation and keep every transaction in view.');
+    put('coverage-lead', builtIn
+      ? name + ' has its networks built in, ' + example.primary + ' and ' + example.secondary + ' among them, so you pick yours and start.'
+      : 'In ' + name + ' you connect by naming the sender your payment messages arrive from, and amounts are read in ' + example.currency + '.');
+  }
   function render(country, source) {
     country = shown(country);
+    localiseCopy(country, source === 'ip' || source === 'manual');
     const example = exampleFor(country);
     document.querySelectorAll('[data-example-money]').forEach(node => {
       const key = node.dataset.exampleMoney;
