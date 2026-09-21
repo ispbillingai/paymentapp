@@ -560,7 +560,7 @@ public class MainActivity extends Activity {
 
         java.util.List<String[]> rows = dashboard.filteredActivity();
         StringBuilder signature = new StringBuilder();
-        for (String[] row : rows) signature.append(row[0]).append(row[1]);
+        for (String[] row : rows) signature.append(row[0]).append(row[1]).append(row.length > 2 ? row[2] : "");
         if (!signature.toString().equals(lastActivity)) {
             lastActivity = signature.toString();
             activityRows.removeAllViews();
@@ -579,6 +579,23 @@ public class MainActivity extends Activity {
                 description.setPadding(0, dp(5), 0, 0);
                 description.setLineSpacing(dp(3), 1);
                 entry.addView(time); entry.addView(description);
+                // The message exactly as it was forwarded. It came from outside, so it is
+                // only ever set as text, and it is selectable for copying into a report.
+                if (row.length > 2 && row[2] != null && !row[2].isEmpty()) {
+                    TextView message = new TextView(this);
+                    message.setText(row[2]);
+                    message.setTextSize(12);
+                    message.setTypeface(android.graphics.Typeface.MONOSPACE);
+                    message.setTextColor(getResources().getColor(R.color.ink));
+                    message.setBackgroundResource(R.drawable.soft_background);
+                    message.setPadding(dp(12), dp(10), dp(12), dp(10));
+                    message.setLineSpacing(dp(3), 1);
+                    message.setTextIsSelectable(true);
+                    LinearLayout.LayoutParams messageParams = new LinearLayout.LayoutParams(-1, -2);
+                    messageParams.topMargin = dp(8);
+                    message.setLayoutParams(messageParams);
+                    entry.addView(message);
+                }
                 activityRows.addView(entry);
                 View divider = new View(this);
                 divider.setBackgroundColor(getResources().getColor(R.color.line));

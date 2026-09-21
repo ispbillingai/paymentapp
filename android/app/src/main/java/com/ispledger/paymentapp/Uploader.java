@@ -64,7 +64,7 @@ final class Uploader {
                     int code = post(c, body);
                     if (code == 200) {
                         box.delivered(i.id);
-                        box.note(outcome(i.sender));
+                        box.note(outcome(i.sender), i.body);
                         Prefs.contactOk(c);
                     } else {
                         box.failed(i.id);

@@ -110,7 +110,10 @@ final class Dashboard {
     }
     List<String[]> filteredActivity(){
         List<String[]> result=new ArrayList<>();
-        for(String[] row:Outbox.get(a).recent())if(row[1].toLowerCase(Locale.ROOT).contains(filter))result.add(row);
+        for(String[] row:Outbox.get(a).recent()){
+            String haystack=(row[1]+" "+(row.length>2&&row[2]!=null?row[2]:"")).toLowerCase(Locale.ROOT);
+            if(haystack.contains(filter))result.add(row);
+        }
         return result;
     }
     private String network(){

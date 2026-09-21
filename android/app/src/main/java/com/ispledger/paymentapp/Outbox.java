@@ -12,8 +12,10 @@ import java.util.List;
 /**
  * Payment messages waiting to reach the dashboard. A message stays here until
  * the dashboard confirms it has it, so a phone with no data, or one that
- * restarts, loses nothing. Once confirmed the message text is deleted.
- * The short activity list keeps no message text at all.
+ * restarts, loses nothing. Once confirmed the message text is deleted from the
+ * queue, but the last 40 activity lines keep a copy of what was forwarded, so the
+ * owner can see the message a payment did or did not come from. That copy stays on
+ * this phone: the diagnostics the app offers to share leave message contents out.
  */
 final class Outbox extends SQLiteOpenHelper {
     static final class Item {
@@ -35,18 +37,22 @@ final class Outbox extends SQLiteOpenHelper {
     }
 
     private Outbox(Context c) {
-        super(c, "outbox.db", null, 2);
+        super(c, "outbox.db", null, 3);
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, body TEXT, sent_at INTEGER, sim INTEGER, attempts INTEGER DEFAULT 0)");
-        db.execSQL("CREATE TABLE activity (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, line TEXT)");
+        db.execSQL("CREATE TABLE activity (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, line TEXT, detail TEXT)");
         createStats(db);
     }
 
     @Override
-    public void onUpgrade(SQLiteDatabase db, int from, int to) { if (from < 2) createStats(db); }
+    public void onUpgrade(SQLiteDatabase db, int from, int to) {
+        if (from < 2) createStats(db);
+        // Adding a column keeps every queued message and every activity line.
+        if (from < 3) db.execSQL("ALTER TABLE activity ADD COLUMN detail TEXT");
+    }
     private void createStats(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS daily_stats (day TEXT PRIMARY KEY, delivered INTEGER NOT NULL DEFAULT 0, retries INTEGER NOT NULL DEFAULT 0)");
     }
@@ -115,9 +121,15 @@ final class Outbox extends SQLiteOpenHelper {
     }
 
     synchronized void note(String line) {
+        note(line, "");
+    }
+
+    /** $detail is the message as it was forwarded, shown under the line. */
+    synchronized void note(String line, String detail) {
         ContentValues v = new ContentValues();
         v.put("at", System.currentTimeMillis());
         v.put("line", line);
+        v.put("detail", detail == null ? "" : detail);
         SQLiteDatabase db = getWritableDatabase();
         db.insert("activity", null, v);
         db.execSQL("DELETE FROM activity WHERE id NOT IN (SELECT id FROM activity ORDER BY id DESC LIMIT 40)");
@@ -125,9 +137,9 @@ final class Outbox extends SQLiteOpenHelper {
 
     synchronized List<String[]> recent() {
         List<String[]> out = new ArrayList<>();
-        try (Cursor c = getReadableDatabase().rawQuery("SELECT at, line FROM activity ORDER BY id DESC LIMIT 40", null)) {
+        try (Cursor c = getReadableDatabase().rawQuery("SELECT at, line, IFNULL(detail, '') FROM activity ORDER BY id DESC LIMIT 40", null)) {
             while (c.moveToNext()) {
-                out.add(new String[]{String.valueOf(c.getLong(0)), c.getString(1)});
+                out.add(new String[]{String.valueOf(c.getLong(0)), c.getString(1), c.getString(2)});
             }
         }
         return out;
