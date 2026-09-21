@@ -42,6 +42,10 @@ final class Prefs {
     /** Has this phone ever written that list? Tells a fresh install from an empty one. */
     static boolean customSendersSet(Context c) { return sp(c).contains("customSenders"); }
 
+    /** The zone times are shown in. Empty means whatever this phone is set to. */
+    static String timezone(Context c) { return sp(c).getString("timezone", ""); }
+    static void timezone(Context c, String value) { sp(c).edit().putString("timezone", value == null ? "" : value.trim()).apply(); }
+
     static boolean paused(Context c) { return sp(c).getBoolean("paused", false); }
     static void paused(Context c, boolean value) { sp(c).edit().putBoolean("paused", value).apply(); }
     static long lastOkAt(Context c) { return sp(c).getLong("lastOkAt", 0); }

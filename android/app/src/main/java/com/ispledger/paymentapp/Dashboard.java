@@ -125,7 +125,7 @@ final class Dashboard {
         return "App version: "+BuildConfig.VERSION_NAME+"\nAndroid: "+Build.VERSION.RELEASE+
             "\nNetwork: "+network()+"\nDevice key: "+(Prefs.configured(a)?"Configured":"Not configured")+
             "\nForwarding: "+(Prefs.paused(a)?"Paused":"Enabled")+"\nPending messages: "+Outbox.get(a).waiting()+
-            "\nLast accepted contact: "+(Prefs.lastOkAt(a)==0?"Never":new SimpleDateFormat("d MMM yyyy HH:mm",Locale.getDefault()).format(new Date(Prefs.lastOkAt(a))))+
+            "\nLast accepted contact: "+(Prefs.lastOkAt(a)==0?"Never":Times.format(a,"d MMM yyyy HH:mm",Prefs.lastOkAt(a)))+
             "\nStatus: "+(Prefs.lastProblem(a).isEmpty()?"No recorded connection error":Prefs.lastProblem(a))+
             "\n\nDevice keys, phone numbers and payment message contents are excluded.";
     }
@@ -150,7 +150,7 @@ final class Dashboard {
         if(!sig.toString().equals(queueSignature)||((LinearLayout)a.findViewById(R.id.queue_rows)).getChildCount()==0){
             queueSignature=sig.toString();LinearLayout list=a.findViewById(R.id.queue_rows);list.removeAllViews();
             if(items.isEmpty())addQueueRow(list,"Queue is clear","New payment messages will appear here while awaiting acknowledgement.");
-            for(Outbox.Item item:items)addQueueRow(list,"Message #"+item.id,"Received "+new SimpleDateFormat("d MMM HH:mm",Locale.getDefault()).format(new Date(item.sentAt))+"\nFailed attempts: "+item.attempts+" · SIM "+(item.sim<0?"unknown":item.sim+1));
+            for(Outbox.Item item:items)addQueueRow(list,"Message #"+item.id,"Received "+Times.format(a,"d MMM HH:mm",item.sentAt)+"\nFailed attempts: "+item.attempts+" · SIM "+(item.sim<0?"unknown":item.sim+1));
         }
     }
     private String check(boolean ready,String title){return (ready?"✓  ":"○  ")+title;}

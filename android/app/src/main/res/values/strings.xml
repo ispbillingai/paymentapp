@@ -69,6 +69,10 @@
     <string name="settings_open">Edit connection settings</string>
     <string name="settings_close">Hide connection settings</string>
     <string name="show_pairing">Show key</string>
+    <string name="label_timezone">Time zone for times shown here</string>
+    <string name="help_timezone">Only changes the times on this screen, so they read the way you do. What is sent to the payment service is the exact moment a message arrived, which carries no time zone.</string>
+    <string name="timezone_phone">Use this phone’s own setting</string>
+    <string name="timezone_set">Times now shown in %1$s.</string>
     <string name="add_sender">Add name</string>
     <string name="remove_sender">Remove</string>
     <string name="no_senders">No sender names yet. Add one below, exactly as your phone shows it.</string>

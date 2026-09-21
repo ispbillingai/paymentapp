@@ -127,6 +127,32 @@ public class MainActivity extends Activity {
         findViewById(R.id.add_sender).setOnClickListener(v -> addTypedSender());
         senders.setOnEditorActionListener((view, action, event) -> { addTypedSender(); return true; });
 
+        // The zone every time on this screen is shown in. The phone's own setting is
+        // first, since that is right for most, and the rest are offered by name.
+        final android.widget.Spinner timezone = findViewById(R.id.timezone);
+        final java.util.List<String> zoneIds = new java.util.ArrayList<>();
+        zoneIds.add("");
+        zoneIds.addAll(Times.choices());
+        java.util.List<String> zoneLabels = new java.util.ArrayList<>();
+        zoneLabels.add(getString(R.string.timezone_phone) + " · " + Times.label(java.util.TimeZone.getDefault().getID()));
+        for (int i = 1; i < zoneIds.size(); i++) zoneLabels.add(Times.label(zoneIds.get(i)));
+        android.widget.ArrayAdapter<String> zoneAdapter =
+                new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_item, zoneLabels);
+        zoneAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        timezone.setAdapter(zoneAdapter);
+        timezone.setSelection(Math.max(0, zoneIds.indexOf(Prefs.timezone(this))));
+        timezone.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                String chosen = zoneIds.get(position);
+                if (chosen.equals(Prefs.timezone(MainActivity.this))) return;
+                Prefs.timezone(MainActivity.this, chosen);
+                lastActivity = "";
+                render();
+                dashboard.connectionFeedback(getString(R.string.timezone_set, zoneLabels.get(position)));
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
         updateState = findViewById(R.id.update_state);
         updateNotes = findViewById(R.id.update_notes);
         updateAction = findViewById(R.id.update_action);
@@ -532,9 +558,9 @@ public class MainActivity extends Activity {
         title.setText(testing ? R.string.hero_testing : !Prefs.configured(this) ? R.string.hero_setup : connected ? R.string.hero_ready : R.string.hero_attention);
         badge.setText(testing ? R.string.pill_testing : !Prefs.configured(this) ? R.string.pill_setup : connected ? R.string.pill_ready : R.string.pill_attention);
         queued.setText(String.valueOf(Outbox.get(this).waiting()));
-        lastContact.setText(Prefs.lastOkAt(this) > 0 ? new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(Prefs.lastOkAt(this))) : getString(R.string.never_contact));
+        lastContact.setText(Prefs.lastOkAt(this) > 0 ? Times.format(this, "HH:mm", Prefs.lastOkAt(this)) : getString(R.string.never_contact));
 
-        SimpleDateFormat f = new SimpleDateFormat("d MMM HH:mm", Locale.getDefault());
+        SimpleDateFormat f = Times.formatter(this, "d MMM HH:mm");
         StringBuilder s = new StringBuilder();
         if (testing) {
             s.append(getString(R.string.testing));
