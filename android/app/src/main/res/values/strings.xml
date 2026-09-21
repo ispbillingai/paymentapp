@@ -85,6 +85,10 @@
     <string name="popup_tick">✓</string>
     <string name="popup_cross">!</string>
     <string name="popup_ok">Done</string>
+    <string name="popup_later">Not now</string>
+    <string name="update_ready_title">An update is ready</string>
+    <string name="update_ready_body">Version %1$s is available for this phone. Updating takes a moment and your settings and any waiting messages are kept.</string>
+    <string name="update_now">Update now</string>
     <string name="popup_close">Close</string>
     <string name="paired_title">This phone is paired</string>
     <string name="paired_body">It is now listening for payment messages and reporting them to your dashboard. Your account key was not kept on this phone.</string>

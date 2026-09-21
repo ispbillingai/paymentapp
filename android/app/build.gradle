@@ -18,8 +18,8 @@ android {
         applicationId 'com.ispledger.paymentapp'
         minSdk 21
         targetSdk 34
-        versionCode 14
-        versionName '1.4.9'
+        versionCode 15
+        versionName '1.5.0'
         // Release builds talk https only. Debug builds may reach a test server over http.
         manifestPlaceholders = [cleartext: 'false']
     }

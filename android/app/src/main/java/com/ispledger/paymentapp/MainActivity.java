@@ -41,6 +41,8 @@ public class MainActivity extends Activity {
     private android.widget.ProgressBar updateProgress;
     private Updater.Release pending;
     private boolean updateBusy;
+    /** Asked once per time the app is opened, not once per screen returned to. */
+    private boolean askedAboutUpdate;
     private boolean testing;
     private String lastActivity = "";
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -99,8 +101,16 @@ public class MainActivity extends Activity {
         allowBattery = findViewById(R.id.allow_battery);
 
         url.setText(Prefs.url(this).equals(Prefs.DEFAULT_URL) ? "" : Prefs.url(this));
+        // Only a debug build can be pointed somewhere else; a released one always
+        // reports to the service, so the control is not offered at all.
         final View advanced = findViewById(R.id.advanced);
-        advanced.setVisibility(url.getText().length() > 0 ? View.VISIBLE : View.GONE);
+        final View advancedToggle = findViewById(R.id.advanced_toggle);
+        if (!BuildConfig.DEBUG) {
+            advanced.setVisibility(View.GONE);
+            advancedToggle.setVisibility(View.GONE);
+        } else {
+            advanced.setVisibility(url.getText().length() > 0 ? View.VISIBLE : View.GONE);
+        }
         findViewById(R.id.advanced_toggle).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -283,9 +293,44 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Offers an update when the app is opened, because nobody should have to know
+     * where the Updates page is. Asked at most once every six hours, and only when
+     * there is actually a newer build, so it never becomes noise.
+     */
+    private void offerUpdateOnOpen() {
+        if (askedAboutUpdate || updateBusy) {
+            return;
+        }
+        askedAboutUpdate = true;
+        if (System.currentTimeMillis() - Prefs.updateAsked(this) < 6 * 60 * 60 * 1000L) {
+            return;
+        }
+        final Context app = getApplicationContext();
+        new Thread(() -> {
+            final Updater.Release release = Updater.check(app);
+            if (release == null || !release.newerThanInstalled()) {
+                return;
+            }
+            ui.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                Prefs.updateAskedNow(app);
+                pending = release;
+                Popup.ask(MainActivity.this,
+                        getString(R.string.update_ready_title),
+                        getString(R.string.update_ready_body, release.versionName),
+                        release.notes,
+                        getString(R.string.update_now),
+                        getString(R.string.popup_later),
+                        this::onUpdateTapped);
+            });
+        }).start();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        offerUpdateOnOpen();
         ListenerService.ensureRunning(this);
         ui.post(tick);
     }
@@ -409,8 +454,9 @@ public class MainActivity extends Activity {
         updateNotes.setText("Contacting the official release service. Please allow up to 20 seconds.");
         updateNotes.setVisibility(View.VISIBLE);
         updateAction.setEnabled(false);
+        final Context app = getApplicationContext();
         new Thread(() -> {
-            final Updater.Release release = Updater.check();
+            final Updater.Release release = Updater.check(app);
             ui.post(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 updateBusy = false;

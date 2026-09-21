@@ -31,9 +31,43 @@ final class Popup {
         show(a, false, title, body, "");
     }
 
-    private static void show(Activity a, boolean good, String title, String body, String detail) {
+    /**
+     * Asks a yes or no question. The second button carries the action, so the one
+     * that changes something is the one being read last.
+     */
+    static void ask(Activity a, String title, String body, String detail, String yes, String no, Runnable onYes) {
         if (a == null || a.isFinishing() || a.isDestroyed()) {
             return;
+        }
+        Dialog dialog = build(a, true, title, body, detail);
+        if (dialog == null) {
+            return;
+        }
+        Button ok = dialog.findViewById(R.id.popup_ok);
+        ok.setText(yes);
+        ok.setOnClickListener(v -> { dialog.dismiss(); onYes.run(); });
+        Button later = dialog.findViewById(R.id.popup_later);
+        later.setText(no);
+        later.setVisibility(View.VISIBLE);
+        later.setOnClickListener(v -> dialog.dismiss());
+        open(a, dialog);
+    }
+
+    private static void show(Activity a, boolean good, String title, String body, String detail) {
+        Dialog dialog = build(a, good, title, body, detail);
+        if (dialog == null) {
+            return;
+        }
+        Button ok = dialog.findViewById(R.id.popup_ok);
+        ok.setText(good ? R.string.popup_ok : R.string.popup_close);
+        ok.setOnClickListener(v -> dialog.dismiss());
+        open(a, dialog);
+    }
+
+    /** The card itself, filled in but with no buttons wired and not yet shown. */
+    private static Dialog build(Activity a, boolean good, String title, String body, String detail) {
+        if (a == null || a.isFinishing() || a.isDestroyed()) {
+            return null;
         }
         hideKeyboard(a);
         Dialog dialog = new Dialog(a);
@@ -55,10 +89,10 @@ final class Popup {
             extra.setText(detail);
             extra.setVisibility(View.VISIBLE);
         }
-        Button ok = dialog.findViewById(R.id.popup_ok);
-        ok.setText(good ? R.string.popup_ok : R.string.popup_close);
-        ok.setOnClickListener(v -> dialog.dismiss());
+        return dialog;
+    }
 
+    private static void open(Activity a, Dialog dialog) {
         Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawable(new ColorDrawable(0x00000000));

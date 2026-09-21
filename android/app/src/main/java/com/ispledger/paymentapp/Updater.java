@@ -32,8 +32,14 @@ import java.security.MessageDigest;
 final class Updater {
     private Updater() {}
 
-    /** Where the newest build is described. Kept off /v1 so it answers even if the gateway database is down. */
-    private static final String MANIFEST = "https://ispbillingpay.com/app/version.json";
+    /**
+     * Where the newest build is described, under whichever gateway this phone is
+     * pointed at, so a test deployment offers its own build rather than the live
+     * one. Kept off /v1 so it answers even if the gateway database is down.
+     */
+    private static String manifest(Context c) {
+        return Enrol.baseUrl(c) + "/app/version.json";
+    }
     private static final long MAX_APK = 60L * 1024 * 1024;
     private static final String FILE = "update.apk";
 
@@ -52,10 +58,10 @@ final class Updater {
     }
 
     /** The newest build, or null if it could not be asked for. */
-    static Release check() {
+    static Release check(Context c) {
         HttpURLConnection con = null;
         try {
-            con = (HttpURLConnection) new URL(MANIFEST).openConnection();
+            con = (HttpURLConnection) new URL(manifest(c)).openConnection();
             con.setConnectTimeout(8000);
             con.setReadTimeout(10000);
             con.setUseCaches(false);

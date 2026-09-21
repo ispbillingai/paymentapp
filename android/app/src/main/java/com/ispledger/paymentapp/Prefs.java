@@ -18,7 +18,17 @@ final class Prefs {
         return c.getApplicationContext().getSharedPreferences("paymentapp", Context.MODE_PRIVATE);
     }
 
+    /**
+     * Where payment messages go. A released app always uses the one address, so
+     * where a phone reports to is settled in the dashboard and cannot be changed
+     * on the handset, whether by a confused owner or anyone else holding it. A
+     * stored address from an older version is ignored rather than honoured.
+     * Debug builds may still point at a test deployment.
+     */
     static String url(Context c) {
+        if (!BuildConfig.DEBUG) {
+            return DEFAULT_URL;
+        }
         String u = sp(c).getString("url", "");
         return u.isEmpty() ? DEFAULT_URL : u;
     }
@@ -45,6 +55,10 @@ final class Prefs {
     /** The zone times are shown in. Empty means whatever this phone is set to. */
     static String timezone(Context c) { return sp(c).getString("timezone", ""); }
     static void timezone(Context c, String value) { sp(c).edit().putString("timezone", value == null ? "" : value.trim()).apply(); }
+
+    /** When the owner was last asked about an update, so opening the app does not nag. */
+    static long updateAsked(Context c) { return sp(c).getLong("updateAsked", 0); }
+    static void updateAskedNow(Context c) { sp(c).edit().putLong("updateAsked", System.currentTimeMillis()).apply(); }
 
     static boolean paused(Context c) { return sp(c).getBoolean("paused", false); }
     static void paused(Context c, boolean value) { sp(c).edit().putBoolean("paused", value).apply(); }

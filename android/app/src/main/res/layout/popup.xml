@@ -56,4 +56,11 @@
         style="@style/PrimaryButton"
         android:layout_marginTop="22dp"
         android:text="@string/popup_ok" />
+
+    <Button
+        android:id="@+id/popup_later"
+        style="@style/SecondaryButton"
+        android:layout_marginTop="8dp"
+        android:visibility="gone"
+        android:text="@string/popup_later" />
 </LinearLayout>
