@@ -68,7 +68,16 @@
     <string name="settings_caption">Pair once with this phone’s own device key. Get it by adding this phone as a listener device, either at ispbillingpay.com under Listener devices, or in your billing panel under Payment Gateway, Direct Number. It is shown once, and it is not your sk_live_ API key.</string>
     <string name="settings_open">Edit connection settings</string>
     <string name="settings_close">Hide connection settings</string>
-    <string name="show_pairing">Show device key</string>
+    <string name="show_pairing">Show key</string>
+    <string name="pair_intro">Pairing with an account key. Tell the service which number this phone watches; it is registered once and the account key is not kept on this phone.</string>
+    <string name="pair_number">Number that receives the money</string>
+    <string name="pair_number_hint">Full number including country code</string>
+    <string name="pair_name">Name registered on that number</string>
+    <string name="pair_name_hint">As it appears on the account</string>
+    <string name="pair_need_number">Enter the number that receives the money, with its country code.</string>
+    <string name="pair_need_name">Enter the name registered on that number.</string>
+    <string name="pairing">Pairing this phone…</string>
+    <string name="paired">This phone is paired. It now has its own key; your account key was not kept here.</string>
     <string name="activity_caption">A simple record of connections and forwarding.</string>
     <string name="privacy_heading">Built for a dedicated phone</string>
     <string name="privacy_short">Keep this phone charged, online and with your receiving SIM. Funds go directly to your account.</string>

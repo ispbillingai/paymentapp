@@ -32,7 +32,8 @@ public class MainActivity extends Activity {
     private TextView status, activity;
     private Button save, allowSms, allowBattery, allowNotifications;
     private TextView title, badge, queued, lastContact, smsState, batteryState, notificationState;
-    private LinearLayout activityRows, senderBoxes;
+    private LinearLayout activityRows, senderBoxes, pairFields;
+    private EditText pairNumber, pairName;
     private CheckBox[] networkBoxes;
     private TextView updateState, updateNotes;
     private Button updateAction;
@@ -106,6 +107,17 @@ public class MainActivity extends Activity {
             }
         });
         key.setText(Prefs.key(this));
+        // An account key needs two more details before this phone can register itself.
+        pairFields = findViewById(R.id.pair_fields);
+        pairNumber = findViewById(R.id.pair_number);
+        pairName = findViewById(R.id.pair_name);
+        key.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable text) {
+                pairFields.setVisibility(Enrol.looksLikeAccountKey(text.toString().trim()) ? View.VISIBLE : View.GONE);
+            }
+        });
         ((CheckBox)findViewById(R.id.show_key)).setOnCheckedChangeListener((view, checked) -> {
             key.setTransformationMethod(checked ? null : PasswordTransformationMethod.getInstance());
             key.setSelection(key.length());
@@ -169,20 +181,32 @@ public class MainActivity extends Activity {
 
     private void saveAndTest() {
         if (testing) return;
-        String u = url.getText().toString().trim();
-        if (u.isEmpty()) {
-            u = Prefs.DEFAULT_URL;
+        final String u;
+        {
+            String typedUrl = url.getText().toString().trim();
+            u = typedUrl.isEmpty() ? Prefs.DEFAULT_URL : typedUrl;
         }
-        String k = key.getText().toString().trim();
+        final String k = key.getText().toString().trim();
         if (!ConnectionPolicy.validUrl(u, BuildConfig.DEBUG)) {
             url.setError(getString(R.string.err_url));
             url.requestFocus();
             return;
         }
-        if (!k.matches("[a-f0-9]{40}")) {
+        final boolean pairing = Enrol.looksLikeAccountKey(k);
+        if (!pairing && !Enrol.looksLikeDeviceKey(k)) {
             key.setError(getString(R.string.err_key));
             key.requestFocus();
             return;
+        }
+        final String number = pairNumber.getText().toString().trim();
+        final String onAccount = pairName.getText().toString().trim();
+        if (pairing) {
+            if (number.replaceAll("[^0-9]", "").length() < 6) {
+                pairNumber.setError(getString(R.string.pair_need_number)); pairNumber.requestFocus(); return;
+            }
+            if (onAccount.isEmpty()) {
+                pairName.setError(getString(R.string.pair_need_name)); pairName.requestFocus(); return;
+            }
         }
         boolean[] chosen = new boolean[networkBoxes.length];
         boolean any = false;
@@ -195,9 +219,12 @@ public class MainActivity extends Activity {
             senders.setError(getString(R.string.sender_empty)); senders.requestFocus(); return;
         }
         testing = true;
-        dashboard.connectionFeedback("Testing connection… This usually takes a few seconds.");
+        dashboard.connectionFeedback(getString(pairing ? R.string.pairing : R.string.testing));
         final long started = android.os.SystemClock.elapsedRealtime();
-        Prefs.save(this, u, k, Senders.compose(chosen, typed));
+        final String senderList = Senders.compose(chosen, typed);
+        // Only ever store a key belonging to this phone. An account key is used for
+        // the pairing request below and goes no further.
+        Prefs.save(this, u, pairing ? Prefs.key(this) : k, senderList);
         status.setText(R.string.testing);
         save.setEnabled(false);
         save.setText(R.string.testing_button);
@@ -206,7 +233,17 @@ public class MainActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final String problem = Uploader.ping(app);
+                String pairProblem = "";
+                if (pairing) {
+                    Enrol.Result paired = Enrol.pair(app, k, number, onAccount, senderList, android.os.Build.MODEL);
+                    if (paired.ok()) {
+                        Prefs.save(app, u, paired.deviceKey, senderList);
+                    } else {
+                        pairProblem = paired.problem;
+                    }
+                }
+                final String problem = pairProblem.isEmpty() ? Uploader.ping(app) : pairProblem;
+                final boolean pairedOk = pairing && pairProblem.isEmpty();
                 if (problem.isEmpty()) {
                     Outbox.get(app).note("Connected");
                     // Queue delivery runs independently of the test result.
@@ -216,7 +253,17 @@ public class MainActivity extends Activity {
                     public void run() {
                         if (isFinishing() || isDestroyed()) return;
                         testing = false;
-                        dashboard.connectionFeedback(problem.isEmpty() ? "Connected successfully · " + (android.os.SystemClock.elapsedRealtime() - started) + " ms. Your device key was accepted." : problem);
+                        if (pairedOk) {
+                            // The account key has done its job. Take it off the screen and
+                            // show the key this phone was given in its place.
+                            key.setText(Prefs.key(app));
+                            pairNumber.setText("");
+                            pairName.setText("");
+                            pairFields.setVisibility(View.GONE);
+                        }
+                        dashboard.connectionFeedback(!problem.isEmpty() ? problem
+                            : pairedOk ? getString(R.string.paired)
+                            : "Connected successfully · " + (android.os.SystemClock.elapsedRealtime() - started) + " ms. Your device key was accepted.");
                         save.setEnabled(true);
                         save.setText(R.string.btn_save);
                         ListenerService.ensureRunning(app);

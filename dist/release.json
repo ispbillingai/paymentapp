@@ -1,5 +1,5 @@
 {
-  "version_code": 6,
-  "version_name": "1.4.1",
-  "notes": "Clearer wording about the device key: it is this phone's own 40-character key from Listener devices, not your sk_live_ API key."
+  "version_code": 7,
+  "version_name": "1.4.2",
+  "notes": "Pair with your account key: paste the same sk_live_ key you use in your billing panel, give the number this phone watches, and it registers itself. The account key is not kept on the phone."
 }
