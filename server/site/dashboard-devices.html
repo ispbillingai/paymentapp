@@ -1,17 +1,30 @@
-<section class="portal-main"><header class="portal-top"><div><p class="micro-label">MERCHANT WORKSPACE</p><h1>Listener devices</h1></div><span id="portal-user"></span></header>
+<section class="portal-main"><header class="portal-top"><div><p class="micro-label">MERCHANT WORKSPACE</p><h1>Numbers and listeners</h1></div><span id="portal-user"></span></header>
 <div class="scope-picker" id="scope-picker" hidden></div>
 
-<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Add a listener</h2><p>One Android phone holding the number your customers pay. It reads the payment message and reports it here.</p></div><a class="text-link" href="/app">Setup guide ↗</a></div>
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Numbers your customers pay</h2><p>One line per network. A customer picks their network and is shown that number and name, so add every number you receive money on.</p></div></div>
+<form id="number-form" class="portal-form" novalidate>
+  <div class="field-row">
+    <div class="field"><label for="number-provider">Network</label><select id="number-provider" required></select></div>
+    <div class="field"><label for="number-value">Number</label><input id="number-value" type="tel" placeholder="Full number including country code" autocomplete="off" required></div>
+    <div class="field"><label for="number-name">Name that comes up</label><input id="number-name" type="text" maxlength="100" placeholder="As your customers will see it" autocomplete="off" required></div>
+  </div>
+  <div class="field" id="number-network-field" hidden><label for="number-network-name">What to call this network</label><input id="number-network-name" type="text" maxlength="40" placeholder="For example: Orange Money" autocomplete="off"><small>Your customers choose by this name, so use the one they know.</small></div>
+  <div class="form-actions"><button class="button button-dark button-small" type="submit">Add number</button></div>
+</form>
+<p id="number-form-error" class="form-error" role="alert" hidden></p>
+<div id="number-records"></div>
+</section>
+
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Add a listener</h2><p>An Android phone holding one of those SIMs. Its only job is forwarding the payment message, so it needs no number of its own.</p></div><a class="text-link" href="/app">Setup guide ↗</a></div>
 <form id="device-form" class="portal-form" novalidate>
   <div class="field-row">
-    <div class="field"><label for="device-provider">Mobile money network</label><select id="device-provider" required></select><small>Pick your network, or choose the last option to name a sender yourself.</small></div>
+    <div class="field"><label for="device-provider">Mobile money network</label><select id="device-provider" required></select><small>Which network's messages this phone forwards. Choose Another network to name the sender yourself.</small></div>
     <div class="field"><label for="device-label">Name this phone</label><input id="device-label" type="text" maxlength="80" placeholder="Front desk phone" autocomplete="off"><small>For your own reference only.</small></div>
   </div>
-  <div class="field-row">
-    <div class="field"><label for="device-number">Number that receives the money <span class="optional">optional</span></label><input id="device-number" type="tel" placeholder="Full number including country code" autocomplete="off"><small>Shown to customers who choose this network, and to no one else. Add one listener per network so each customer sees only the number they can pay. Payments are read from the message either way.</small></div>
-    <div class="field"><label for="device-name">Name registered on that number <span class="optional">optional</span></label><input id="device-name" type="text" maxlength="100" placeholder="As it appears on the account" autocomplete="off"></div>
+  <div class="field-row" id="device-sender-field" hidden>
+    <div class="field"><label for="device-senders">Sender name your messages arrive from</label><input id="device-senders" type="text" maxlength="255" placeholder="Exactly as your phone shows it" autocomplete="off"><small>Separate several with commas. Copy the sender exactly, including spaces and capitals.</small></div>
+    <div class="field"><label for="device-provider-name">What to call this network <span class="optional">optional</span></label><input id="device-provider-name" type="text" maxlength="40" placeholder="For example: Orange Money" autocomplete="off"></div>
   </div>
-  <div class="field" id="device-sender-field" hidden><label for="device-senders">Sender name your messages arrive from</label><input id="device-senders" type="text" maxlength="255" placeholder="Exactly as your phone shows it" autocomplete="off"><small>Separate several with commas. Copy the sender exactly, including spaces and capitals.</small></div>
   <div class="form-actions"><button class="button button-dark button-small" type="submit">Create listener</button></div>
 </form>
 <div class="credential-reveal" id="device-key-reveal" hidden><p class="micro-label">DEVICE KEY — SHOWN ONCE</p><code id="device-key-value"></code><div class="button-row"><button class="copy-button" type="button" data-copy="device-key-value">Copy key</button><a class="text-link" href="/download">Download the app ↗</a></div><p>This is the device key. Paste it into the ISP Pay Bridge app on that phone, under Device connection. It is not your API key, which stays in your billing system. It is not stored in readable form, so it cannot be shown again; rotate it if it is ever lost.</p></div>

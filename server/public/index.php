@@ -388,7 +388,7 @@ try {
             foreach (array_keys(Parser::defaultSenders($merchant['dial_code'])) as $code) {
                 $providers[] = ['code' => $code, 'label' => Parser::providerLabel($code)];
             }
-            $providers[] = ['code' => 'other', 'label' => 'Another network (type its sender name)'];
+            $providers[] = ['code' => 'other', 'label' => 'Another network'];
         }
         // An owner may also run a merchant account of their own on this same sign-in.
         $own = ($user['role'] === 'owner' && $user['merchant_id'])
@@ -470,7 +470,7 @@ try {
         foreach (array_keys(Parser::defaultSenders($merchant['dial_code'])) as $code) {
             $providers[] = ['code' => $code, 'label' => Parser::providerLabel($code)];
         }
-        $providers[] = ['code' => 'other', 'label' => 'Another network (type its sender name)'];
+        $providers[] = ['code' => 'other', 'label' => 'Another network'];
         out(['providers' => $providers]);
     }
 
@@ -594,6 +594,32 @@ try {
         $merchant = $targetMerchant($user, $in);
         if (!$merchant) fail('no_merchant', $user['role'] === 'owner' ? 'Choose the merchant this listener belongs to.' : 'Listener devices belong to a merchant account. Complete live registration first.', 409);
         reply(Gateway::createDevice($merchant, $in), 201);
+    }
+
+    /**
+     * The numbers customers pay. No key is issued and none is asked for: these
+     * are details shown to a payer, not credentials.
+     */
+    if ($path === '/v1/portal/numbers' && $method === 'GET') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $merchant = $targetMerchant($user, ['merchant_id' => $_GET['merchant_id'] ?? '']);
+        out(['numbers' => $merchant ? Gateway::numbers($merchant['id']) : []]);
+    }
+
+    if ($path === '/v1/portal/numbers' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body();
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', $user['role'] === 'owner' ? 'Choose the merchant this number belongs to.' : 'Receiving numbers belong to a merchant account. Complete live registration first.', 409);
+        reply(Gateway::addNumber($merchant, $in), 201);
+    }
+
+    if ($path === '/v1/portal/numbers/remove' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['number_id', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'This account has no receiving numbers.', 409);
+        Gateway::removeNumber($merchant, (string) ($in['number_id'] ?? '')) ? out(['ok' => true]) : fail('not_found', 'Number not found.', 404);
     }
 
     if ($path === '/v1/portal/devices/rotate' && $method === 'POST') {
@@ -888,7 +914,7 @@ try {
             $providers[] = ['code' => $code, 'label' => Parser::providerLabel($code)];
         }
         out(['id' => $m['public_id'], 'name' => $m['name'], 'country' => $m['country'], 'dial_code' => $m['dial_code'], 'currency' => $m['currency'],
-             'webhook_url' => (string) $m['webhook_url'], 'providers' => array_merge($providers, [['code' => 'other', 'label' => 'Another network (type its sender name below)']]), 'pay_to' => Gateway::payTo($m['id'])]);
+             'webhook_url' => (string) $m['webhook_url'], 'providers' => array_merge($providers, [['code' => 'other', 'label' => 'Another network']]), 'pay_to' => Gateway::payTo($m['id'])]);
     }
 
     if ($path === '/v1/devices' && $method === 'GET') {
@@ -897,6 +923,20 @@ try {
     if ($path === '/v1/devices' && $method === 'POST') {
         reply(Gateway::createDevice($m, body()), 201);
     }
+    /**
+     * The numbers customers pay. Plain details, no key: a number tells a customer
+     * where to send money and is never used to read or match a payment.
+     */
+    if ($path === '/v1/numbers' && $method === 'GET') {
+        out(['numbers' => Gateway::numbers($m['id'])]);
+    }
+    if ($path === '/v1/numbers' && $method === 'POST') {
+        reply(Gateway::addNumber($m, body()), 201);
+    }
+    if (count($seg) === 4 && $seg[1] === 'numbers' && $seg[3] === 'remove' && $method === 'POST') {
+        Gateway::removeNumber($m, $seg[2]) ? out(['ok' => true]) : fail('not_found', 'Number not found.', 404);
+    }
+
     if (count($seg) === 4 && $seg[1] === 'devices' && $method === 'POST') {
         if ($seg[3] === 'rotate') {
             $r = Gateway::rotateDeviceKey($m, $seg[2]);

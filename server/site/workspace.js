@@ -185,6 +185,41 @@
     });
   }
 
+  /**
+   * Asks a plain yes or no, for something that issues no credential and so has
+   * no password to confirm. Resolves true only if they said yes.
+   */
+  let askBox = null;
+  function confirmAction(heading, detail, action) {
+    if (!askBox) {
+      askBox = document.createElement('div');
+      askBox.className = 'portal-dialog';
+      askBox.hidden = true;
+      askBox.innerHTML = '<div class="portal-dialog-box" role="dialog" aria-modal="true" aria-labelledby="ask-title">'
+        + '<h2 id="ask-title"></h2><p class="dialog-detail"></p>'
+        + '<div class="form-actions"><button type="button" class="button button-outline button-small ask-cancel">Cancel</button>'
+        + '<button type="button" class="button button-dark button-small ask-confirm"></button></div></div>';
+      document.body.append(askBox);
+    }
+    askBox.querySelector('#ask-title').textContent = heading;
+    askBox.querySelector('.dialog-detail').textContent = detail;
+    const yes = askBox.querySelector('.ask-confirm');
+    yes.textContent = action;
+    askBox.hidden = false;
+    yes.focus();
+    return new Promise(resolve => {
+      const close = value => {
+        askBox.hidden = true;
+        askBox.removeEventListener('keydown', onKey);
+        resolve(value);
+      };
+      const onKey = event => { if (event.key === 'Escape') close(false); };
+      askBox.querySelector('.ask-cancel').onclick = () => close(false);
+      yes.onclick = () => close(true);
+      askBox.addEventListener('keydown', onKey);
+    });
+  }
+
   /** Reveals a value once, and wires its copy button. */
   function reveal(panelId, valueId, value) {
     el(valueId).textContent = value;
@@ -1132,11 +1167,90 @@
     // Naming a sender yourself only applies to a network that is not built in.
     select.onchange = () => { el('device-sender-field').hidden = select.value !== 'other'; };
 
+    /**
+     * The numbers customers pay. Kept apart from the listeners above: this is
+     * what a payer is told, it issues nothing, and one phone can forward for a
+     * SIM whose number is listed here.
+     */
+    const numberSelect = el('number-provider');
+    const numberColumns = [
+      {label: 'Network', key: 'provider_label'},
+      {label: 'Number', key: 'number'},
+      {label: 'Name that comes up', key: 'account_name'},
+      {
+        label: '',
+        cell: row => {
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'copy-button';
+          remove.textContent = 'Remove';
+          remove.onclick = async () => {
+            if (!(await confirmAction('Remove this number?',
+              'Customers will stop being shown ' + row.number + '. Payments already received are not affected.', 'Remove'))) return;
+            try {
+              await post('/v1/portal/numbers/remove', {number_id: row.id, merchant_id: scope.id});
+              listNumbers();
+            } catch (e) { show('number-form-error', e.message); }
+          };
+          const group = document.createElement('div');
+          group.className = 'row-actions';
+          group.append(remove);
+          return group;
+        },
+      },
+    ];
+
+    async function listNumbers() {
+      const query = scope.id ? '?merchant_id=' + encodeURIComponent(scope.id) : '';
+      try {
+        const data = await api('/v1/portal/numbers' + query);
+        table('number-records', numberColumns, data.numbers,
+          'No numbers yet. Add the number your customers send money to.');
+      } catch (e) {
+        show('number-form-error', e.message);
+      }
+    }
+
+    function loadNumberProviders() {
+      numberSelect.replaceChildren();
+      Array.from(select.options).forEach(option => {
+        numberSelect.append(new Option(option.textContent, option.value));
+      });
+      numberSelect.disabled = select.disabled;
+      el('number-form').querySelector('button[type=submit]').disabled = select.disabled;
+      el('number-network-field').hidden = numberSelect.value !== 'other';
+    }
+    loadNumberProviders();
+    numberSelect.onchange = () => { el('number-network-field').hidden = numberSelect.value !== 'other'; };
+
+    el('number-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = el('number-form').querySelector('button[type=submit]');
+      show('number-form-error', '');
+      button.disabled = true;
+      try {
+        await post('/v1/portal/numbers', {
+          provider: numberSelect.value,
+          provider_name: el('number-network-name').value.trim(),
+          number: el('number-value').value.trim(),
+          account_name: el('number-name').value.trim(),
+          merchant_id: scope.id,
+        });
+        el('number-form').reset();
+        el('number-network-field').hidden = true;
+        listNumbers();
+      } catch (e) {
+        show('number-form-error', e.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+    listNumbers();
+
     const columns = [
       {label: 'Listener', key: 'label'},
       ...(scope.owner ? [{label: 'Merchant', key: 'merchant'}] : []),
       {label: 'Network', key: 'provider_label'},
-      {label: 'Receives on', cell: row => [row.receiving_number, row.receiving_name].filter(Boolean).join(' · ') || 'Not set'},
       {
         label: 'State',
         cell: row => {
@@ -1223,6 +1337,7 @@
           receiving_number: el('device-number').value.trim(),
           receiving_name: el('device-name').value.trim(),
           extra_senders: el('device-senders').value.trim(),
+          provider_name: el('device-provider-name').value.trim(),
           merchant_id: scope.id,
         });
         el('device-form').reset();
@@ -1280,7 +1395,13 @@
     el('uptime-days').onchange = () => uptime();
 
     el('devices-refresh').onclick = () => { list(); uptime(); };
-    scope.onchange = () => { loadProviders(); list(); uptime(); };
+    scope.onchange = async () => {
+      await loadProviders();
+      loadNumberProviders();
+      listNumbers();
+      list();
+      uptime();
+    };
     list();
     uptime();
   };

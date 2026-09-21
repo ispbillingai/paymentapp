@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS devices (
     merchant_id INT NOT NULL,
     label VARCHAR(80) NOT NULL DEFAULT '',
     provider VARCHAR(30) NOT NULL DEFAULT '',
+    -- What to call the network when it is not one we know. Blank for a built-in
+    -- network, whose name we already have.
+    provider_name VARCHAR(40) NOT NULL DEFAULT '',
     receiving_number VARCHAR(20) NOT NULL DEFAULT '',
     receiving_key VARCHAR(20) NOT NULL DEFAULT '',
     receiving_name VARCHAR(100) NOT NULL DEFAULT '',
@@ -51,6 +54,24 @@ CREATE TABLE IF NOT EXISTS devices (
     UNIQUE KEY uq_dev_key (key_hash),
     KEY idx_dev_merchant (merchant_id),
     KEY idx_dev_active (merchant_id, status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Where customers send their money: a network, a number and the name that comes
+-- up when they type it. Nothing here reads or matches a payment, so none of it
+-- carries a key. A listener phone forwards messages; these say where to pay.
+CREATE TABLE IF NOT EXISTS receiving_numbers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(40) NOT NULL,
+    merchant_id INT NOT NULL,
+    provider VARCHAR(30) NOT NULL DEFAULT '',
+    -- What to call a network we do not know. Blank for a built-in one.
+    provider_name VARCHAR(40) NOT NULL DEFAULT '',
+    number VARCHAR(20) NOT NULL DEFAULT '',
+    account_name VARCHAR(100) NOT NULL DEFAULT '',
+    status VARCHAR(10) NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL,
+    UNIQUE KEY uq_num_public (public_id),
+    KEY idx_num_merchant (merchant_id, status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS intents (

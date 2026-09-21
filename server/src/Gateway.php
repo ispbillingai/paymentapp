@@ -100,7 +100,7 @@ class Gateway
 
     public static function createDevice(array $m, array $in)
     {
-        foreach (['provider', 'receiving_number', 'receiving_name', 'label', 'extra_senders'] as $field) {
+        foreach (['provider', 'provider_name', 'receiving_number', 'receiving_name', 'label', 'extra_senders'] as $field) {
             if (isset($in[$field]) && !is_string($in[$field])) {
                 return ['error' => ['code' => 'bad_request', 'message' => 'Device details must be text values.']];
             }
@@ -111,9 +111,18 @@ class Gateway
         // A merchant can configure the exact sender name for another network.
         // Its receipt format still has to pass the parser's existing checks.
         $extraSenders = trim((string) ($in['extra_senders'] ?? ''));
+        // A network we do not know still has to be called something, because a
+        // customer choosing where to pay is choosing between network names. Left
+        // unsaid, the sender name the messages arrive from is the closest thing
+        // to it, and is what the merchant has already typed.
+        $providerName = '';
         if ($provider === 'other') {
             if ($extraSenders === '') {
                 return ['error' => ['code' => 'sender_required', 'message' => 'Type the sender name your payment messages arrive from, exactly as your phone shows it.']];
+            }
+            $providerName = trim((string) ($in['provider_name'] ?? ''));
+            if ($providerName === '') {
+                $providerName = trim((string) strtok($extraSenders, ','));
             }
         } elseif (!array_key_exists($provider, Parser::defaultSenders($m['dial_code']))) {
             return ['error' => ['code' => 'unknown_provider', 'message' => 'Choose your mobile money network.']];
@@ -128,9 +137,9 @@ class Gateway
         }
         $key = bin2hex(random_bytes(20));
         Db::run(
-            "INSERT INTO devices (public_id, merchant_id, label, provider, receiving_number, receiving_key, receiving_name, extra_senders, key_hash, status, created_at)
-             VALUES (?,?,?,?,?,?,?,?,?, 'active', ?)",
-            [self::newId('dev'), (int) $m['id'], substr(trim((string) ($in['label'] ?? '')) ?: ($name !== '' ? $name : 'Listener'), 0, 80), $provider, substr($number, 0, 20), $rkey, substr($name, 0, 100), substr(trim((string) ($in['extra_senders'] ?? '')), 0, 255), hash('sha256', $key), self::now()]
+            "INSERT INTO devices (public_id, merchant_id, label, provider, provider_name, receiving_number, receiving_key, receiving_name, extra_senders, key_hash, status, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?, 'active', ?)",
+            [self::newId('dev'), (int) $m['id'], substr(trim((string) ($in['label'] ?? '')) ?: ($name !== '' ? $name : 'Listener'), 0, 80), $provider, substr($providerName, 0, 40), substr($number, 0, 20), $rkey, substr($name, 0, 100), substr(trim((string) ($in['extra_senders'] ?? '')), 0, 255), hash('sha256', $key), self::now()]
         );
         $d = Db::row("SELECT * FROM devices WHERE id = ?", [Db::lastId()]);
         return ['device' => self::deviceOut($d), 'device_key' => $key];
@@ -153,12 +162,119 @@ class Gateway
         return true;
     }
 
+    /**
+     * What a network is called.
+     *
+     * A built-in network has a name we already know. One the merchant named
+     * themselves is called what they called it, which is what their customers
+     * will be choosing between on the payment page.
+     */
+    public static function providerName(array $row)
+    {
+        $named = trim((string) (isset($row['provider_name']) ? $row['provider_name'] : ''));
+        return $named !== '' ? $named : Parser::providerLabel($row['provider']);
+    }
+
+    /** @deprecated kept so older callers keep working; use providerName(). */
+    public static function deviceProvider(array $d)
+    {
+        return self::providerName($d);
+    }
+
+    // ---------------------------------------------------------------
+    // Where customers pay
+    //
+    // A number, its network, and the name that comes up when a customer types
+    // it. None of this reads a payment: the message names the sender, never the
+    // receiver, so a number here is only ever an instruction to a customer. That
+    // is why adding one issues no key and needs no phone.
+    // ---------------------------------------------------------------
+
+    public static function addNumber(array $m, array $in)
+    {
+        foreach (['provider', 'provider_name', 'number', 'account_name'] as $field) {
+            if (isset($in[$field]) && !is_string($in[$field])) {
+                return ['error' => ['code' => 'bad_request', 'message' => 'Number details must be text values.']];
+            }
+        }
+        $provider = trim((string) ($in['provider'] ?? ''));
+        $providerName = trim((string) ($in['provider_name'] ?? ''));
+        $number = preg_replace('/[^\d+]/', '', (string) ($in['number'] ?? ''));
+        $accountName = trim((string) ($in['account_name'] ?? ''));
+
+        if ($provider === 'other') {
+            if ($providerName === '') {
+                return ['error' => ['code' => 'network_required', 'message' => 'Type what to call this network, as your customers know it.']];
+            }
+        } elseif (!array_key_exists($provider, Parser::defaultSenders($m['dial_code']))) {
+            return ['error' => ['code' => 'unknown_provider', 'message' => 'Choose the mobile money network.']];
+        } else {
+            $providerName = '';
+        }
+        if ($number === '') {
+            return ['error' => ['code' => 'number_required', 'message' => 'Type the number your customers send money to.']];
+        }
+        if (Parser::msisdnKey($number, Parser::msisdnDigitsFor($m['dial_code'])) === '') {
+            return ['error' => ['code' => 'bad_number', 'message' => 'That does not look like a full number. Include the country code.']];
+        }
+        if ($accountName === '') {
+            return ['error' => ['code' => 'name_required', 'message' => 'Type the name that comes up when someone sends to this number.']];
+        }
+        // The same number twice would give a customer two identical choices.
+        $there = Db::row(
+            "SELECT id FROM receiving_numbers WHERE merchant_id = ? AND number = ? AND status = 'active'",
+            [(int) $m['id'], substr($number, 0, 20)]
+        );
+        if ($there) {
+            return ['error' => ['code' => 'number_exists', 'message' => 'That number is already on your list.']];
+        }
+        Db::run(
+            "INSERT INTO receiving_numbers (public_id, merchant_id, provider, provider_name, number, account_name, status, created_at)
+             VALUES (?,?,?,?,?,?, 'active', ?)",
+            [self::newId('num'), (int) $m['id'], substr($provider, 0, 30), substr($providerName, 0, 40),
+             substr($number, 0, 20), substr($accountName, 0, 100), self::now()]
+        );
+        return ['number' => self::numberOut(Db::row("SELECT * FROM receiving_numbers WHERE id = ?", [Db::lastId()]))];
+    }
+
+    public static function numbers($merchantId)
+    {
+        $out = [];
+        foreach (Db::rows("SELECT * FROM receiving_numbers WHERE merchant_id = ? AND status = 'active' ORDER BY id", [(int) $merchantId]) as $n) {
+            $out[] = self::numberOut($n);
+        }
+        return $out;
+    }
+
+    public static function removeNumber(array $m, $publicId)
+    {
+        $n = Db::row(
+            "SELECT * FROM receiving_numbers WHERE public_id = ? AND merchant_id = ?",
+            [(string) $publicId, (int) $m['id']]
+        );
+        if (!$n) {
+            return false;
+        }
+        Db::run("UPDATE receiving_numbers SET status = 'removed' WHERE id = ? AND status <> 'removed'", [(int) $n['id']]);
+        return true;
+    }
+
+    public static function numberOut(array $n)
+    {
+        return [
+            'id' => $n['public_id'], 'provider' => $n['provider'],
+            'provider_name' => $n['provider_name'], 'provider_label' => self::providerName($n),
+            'number' => $n['number'], 'account_name' => $n['account_name'],
+        ];
+    }
+
     public static function deviceOut(array $d)
     {
         $seen = $d['last_seen'] ? strtotime($d['last_seen']) : 0;
         return [
             'id' => $d['public_id'], 'label' => $d['label'], 'provider' => $d['provider'],
-            'provider_label' => Parser::providerLabel($d['provider']),
+            'provider_name' => isset($d['provider_name']) ? $d['provider_name'] : '',
+            'provider_label' => self::deviceProvider($d),
             'receiving_number' => $d['receiving_number'], 'receiving_name' => $d['receiving_name'],
             'extra_senders' => $d['extra_senders'], 'status' => $d['status'],
             'health' => $d['status'] !== 'active' ? 'revoked' : (!$seen ? 'never' : ($seen > time() - 1800 ? 'online' : 'quiet')),
@@ -166,14 +282,27 @@ class Gateway
         ];
     }
 
+    /**
+     * Where to tell a customer to send the money, one entry per network.
+     *
+     * The list is its own thing now. Numbers typed on a listener before that
+     * existed still count, so no merchant's payment page empties because of the
+     * split, but a number only appears once however many ways it was entered.
+     */
     public static function payTo($merchantId)
     {
-        $out = [];
+        $out = $seen = [];
+        foreach (self::numbers($merchantId) as $n) {
+            $seen[$n['number']] = true;
+            $out[] = ['number' => $n['number'], 'name' => $n['account_name'], 'provider' => $n['provider_label']];
+        }
         foreach (Db::rows("SELECT * FROM devices WHERE merchant_id = ? AND status = 'active' ORDER BY id", [(int) $merchantId]) as $d) {
-            if (trim((string) $d['receiving_number']) === '') {
+            $number = trim((string) $d['receiving_number']);
+            if ($number === '' || isset($seen[$number])) {
                 continue;
             }
-            $out[] = ['number' => $d['receiving_number'], 'name' => $d['receiving_name'], 'provider' => Parser::providerLabel($d['provider'])];
+            $seen[$number] = true;
+            $out[] = ['number' => $number, 'name' => $d['receiving_name'], 'provider' => self::providerName($d)];
         }
         return $out;
     }
