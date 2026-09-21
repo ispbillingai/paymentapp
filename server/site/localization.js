@@ -173,10 +173,13 @@
     const node = document.getElementById(id);
     if (node) copy[id] = node.textContent;
   });
-  function localiseCopy(country, known) {
+  function localiseCopy(country, known, detected) {
     const put = (id, text) => { const node = document.getElementById(id); if (node) node.textContent = text; };
     if (!known || !country) {
-      put('hero-country', '');
+      // Where someone is reading from is worth saying even where the product is
+      // not offered, which is the whole of the greeting: it says where they are,
+      // never that we serve it. The examples below stay international.
+      put('hero-country', known && detected ? ' · VISITING FROM ' + nameOf(detected).toUpperCase() : '');
       put('hero-lead', copy['hero-lead']);
       put('coverage-lead', copy['coverage-lead']);
       return;
@@ -193,8 +196,11 @@
       : 'In ' + name + ' you connect by naming the sender your payment messages arrive from, and amounts are read in ' + example.currency + '.');
   }
   function render(country, source) {
+    // What the address said, and what we will show examples for: not always the
+    // same country, because some are deliberately not offered here.
+    const detected = countryCode(country);
     country = shown(country);
-    localiseCopy(country, source === 'ip' || source === 'manual');
+    localiseCopy(country, source === 'ip' || source === 'manual', detected);
     const example = exampleFor(country);
     document.querySelectorAll('[data-example-money]').forEach(node => {
       const key = node.dataset.exampleMoney;
