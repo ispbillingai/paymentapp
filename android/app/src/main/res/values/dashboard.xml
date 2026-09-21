@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="dash_0">☰</string>
+  <string name="dash_1">WORKSPACE</string>
+  <string name="dash_2">Overview</string>
+  <string name="dash_3">Delivered today</string>
+  <string name="dash_4">0</string>
+  <string name="dash_5">Failed attempts today</string>
+  <string name="dash_6">0</string>
+  <string name="dash_7">Forwarding activity</string>
+  <string name="dash_8">Messages delivered to your gateway. Counts begin with this update.</string>
+  <string name="dash_9">Last 7 days · change period</string>
+  <string name="dash_10">No deliveries recorded yet.</string>
+  <string name="dash_11">Quick actions</string>
+  <string name="dash_12">Test connection</string>
+  <string name="dash_13">Set up this phone</string>
+  <string name="dash_14">Pause forwarding</string>
+  <string name="dash_15" />
+  <string name="dash_16">Setup checklist</string>
+  <string name="dash_17" />
+  <string name="dash_18">Review device health</string>
+  <string name="dash_19">Enter your device key, then test the connection.</string>
+  <string name="dash_20">Delivery queue</string>
+  <string name="dash_21">Pending messages stay on this phone until the gateway acknowledges them. Message bodies are hidden.</string>
+  <string name="dash_22" />
+  <string name="dash_23">Retry pending messages</string>
+  <string name="dash_24">Connection diagnostics</string>
+  <string name="dash_25" />
+  <string name="dash_26">Share diagnostic summary</string>
+  <string name="dash_27">Open Android app settings</string>
+  <string name="dash_28">Open official download page</string>
+  <string name="dash_29">Updates are checked against the published checksum before Android asks you to install.</string>
+  <string name="dash_30">Contact support</string>
+  <string name="dash_31">ISP Billing Pay</string>
+  <string name="dash_32">PAYMENT FORWARDER</string>
+  <string name="dash_33">Close menu</string>
+  <string name="dash_34">Overview</string>
+  <string name="dash_35">Device connection</string>
+  <string name="dash_36">Delivery queue</string>
+  <string name="dash_37">Activity log</string>
+  <string name="dash_38">Device health</string>
+  <string name="dash_39">App updates</string>
+  <string name="dash_40">Help &amp; support</string>
+  <string name="dash_41">Direct payments
+Secure device pairing · no password</string>
+  <string name="dash_save_test">Save key &amp; test connection</string>
+</resources>

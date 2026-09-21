@@ -27,19 +27,22 @@ final class Uploader {
             int code = post(c, body);
             return explain(c, code);
         } catch (Exception e) {
+            if (e instanceof java.net.SocketTimeoutException) return problem(c, "Connection timed out. Check internet access and try again.");
+            if (e instanceof javax.net.ssl.SSLException) return problem(c, "The gateway secure connection could not be verified. Check the phone date and gateway address.");
             return problem(c, "Could not reach the payment service. Check this phone's internet.");
         }
     }
 
     /** Sends everything that is waiting, oldest first. Stops at the first failure and keeps the rest. */
     static void flush(Context c) {
-        if (!Prefs.configured(c)) {
+        if (!Prefs.configured(c) || Prefs.paused(c)) {
             return;
         }
         synchronized (LOCK) {
             Outbox box = Outbox.get(c);
             List<Outbox.Item> items = box.pending(25);
             for (Outbox.Item i : items) {
+                if (Prefs.paused(c)) return;
                 try {
                     JSONObject body = new JSONObject();
                     body.put("from", i.sender);
@@ -71,6 +74,9 @@ final class Uploader {
             Prefs.contactOk(c);
             return "";
         }
+        if (code >= 300 && code < 400) return problem(c, "The gateway redirected this request. Use the direct HTTPS device endpoint.");
+        if (code == 502) return problem(c, "The gateway did not return a valid acknowledgement. Check the endpoint address.");
+        if (code == 422) return problem(c, "The gateway did not accept the message. Pending messages are kept on this phone.");
         if (code == 401) {
             return problem(c, "This key was not accepted. Create a new key on the Direct Number page of your dashboard and paste it here.");
         }
@@ -88,8 +94,9 @@ final class Uploader {
     private static int post(Context c, JSONObject body) throws Exception {
         HttpURLConnection con = (HttpURLConnection) new URL(Prefs.url(c)).openConnection();
         try {
-            con.setConnectTimeout(15000);
-            con.setReadTimeout(25000);
+            con.setConnectTimeout(8000);
+            con.setReadTimeout(10000);
+            con.setInstanceFollowRedirects(false);
             con.setRequestMethod("POST");
             con.setDoOutput(true);
             con.setRequestProperty("Content-Type", "application/json; charset=utf-8");
@@ -98,16 +105,20 @@ final class Uploader {
                 os.write(body.toString().getBytes(StandardCharsets.UTF_8));
             }
             int code = con.getResponseCode();
-            drain(code >= 400 ? con.getErrorStream() : con.getInputStream());
+            String response = drain(code >= 400 ? con.getErrorStream() : con.getInputStream());
+            if (code == 200) {
+                try { if (!new JSONObject(response).optBoolean("ok", false)) return 422; }
+                catch (Exception invalid) { return 502; }
+            }
             return code;
         } finally {
             con.disconnect();
         }
     }
 
-    private static void drain(InputStream in) {
+    private static String drain(InputStream in) {
         if (in == null) {
-            return;
+            return "";
         }
         try (InputStream s = in; ByteArrayOutputStream sink = new ByteArrayOutputStream()) {
             byte[] buf = new byte[1024];
@@ -115,7 +126,7 @@ final class Uploader {
             while ((n = s.read(buf)) > 0 && sink.size() < 8192) {
                 sink.write(buf, 0, n);
             }
-        } catch (Exception ignored) {
-        }
+            return sink.toString("UTF-8");
+        } catch (Exception ignored) { return ""; }
     }
 }

@@ -27,6 +27,7 @@ import java.util.Locale;
 
 /** The only screen: set up once, then a plain status the owner can glance at. */
 public class MainActivity extends Activity {
+    private Dashboard dashboard;
     private EditText url, key, senders;
     private TextView status, activity;
     private Button save, allowSms, allowBattery, allowNotifications;
@@ -53,6 +54,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_main);
+        dashboard = new Dashboard(this);
         if (Build.VERSION.SDK_INT >= 23) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         else getWindow().setStatusBarColor(getResources().getColor(R.color.brand_dark));
         title = findViewById(R.id.connection_title);
@@ -130,7 +132,7 @@ public class MainActivity extends Activity {
         updateProgress = findViewById(R.id.update_progress);
         updateState.setText(getString(R.string.update_current, BuildConfig.VERSION_NAME));
         updateAction.setOnClickListener(v -> onUpdateTapped());
-        checkForUpdate();
+        // Check only when requested; progress stays visible on the Updates page.
 
         save.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -166,12 +168,13 @@ public class MainActivity extends Activity {
     }
 
     private void saveAndTest() {
+        if (testing) return;
         String u = url.getText().toString().trim();
         if (u.isEmpty()) {
             u = Prefs.DEFAULT_URL;
         }
         String k = key.getText().toString().trim();
-        if (!u.startsWith("https://") && !(BuildConfig.DEBUG && u.startsWith("http://"))) {
+        if (!ConnectionPolicy.validUrl(u, BuildConfig.DEBUG)) {
             url.setError(getString(R.string.err_url));
             url.requestFocus();
             return;
@@ -192,6 +195,8 @@ public class MainActivity extends Activity {
             senders.setError(getString(R.string.sender_empty)); senders.requestFocus(); return;
         }
         testing = true;
+        dashboard.connectionFeedback("Testing connection… This usually takes a few seconds.");
+        final long started = android.os.SystemClock.elapsedRealtime();
         Prefs.save(this, u, k, Senders.compose(chosen, typed));
         status.setText(R.string.testing);
         save.setEnabled(false);
@@ -204,17 +209,19 @@ public class MainActivity extends Activity {
                 final String problem = Uploader.ping(app);
                 if (problem.isEmpty()) {
                     Outbox.get(app).note("Connected");
-                    Uploader.flush(app);
+                    // Queue delivery runs independently of the test result.
                 }
                 ui.post(new Runnable() {
                     @Override
                     public void run() {
                         if (isFinishing() || isDestroyed()) return;
                         testing = false;
+                        dashboard.connectionFeedback(problem.isEmpty() ? "Connected successfully · " + (android.os.SystemClock.elapsedRealtime() - started) + " ms. Your device key was accepted." : problem);
                         save.setEnabled(true);
                         save.setText(R.string.btn_save);
                         ListenerService.ensureRunning(app);
                         render();
+                        if (problem.isEmpty()) new Thread(() -> Uploader.flush(app)).start();
                     }
                 });
             }
@@ -230,6 +237,10 @@ public class MainActivity extends Activity {
             return;
         }
         updateBusy = true;
+        updateState.setText("Checking for updates…");
+        updateAction.setText("Checking…");
+        updateNotes.setText("Contacting the official release service. Please allow up to 20 seconds.");
+        updateNotes.setVisibility(View.VISIBLE);
         updateAction.setEnabled(false);
         new Thread(() -> {
             final Updater.Release release = Updater.check();
@@ -240,7 +251,8 @@ public class MainActivity extends Activity {
                 if (release == null) {
                     pending = null;
                     updateState.setText(getString(R.string.update_unreachable, BuildConfig.VERSION_NAME));
-                    updateNotes.setVisibility(View.GONE);
+                    updateNotes.setText("Check internet access and try again, or use the official download page below.");
+                    updateNotes.setVisibility(View.VISIBLE);
                     updateAction.setText(R.string.update_check);
                     return;
                 }
@@ -362,6 +374,7 @@ public class MainActivity extends Activity {
     }
 
     private void render() {
+        dashboard.refresh();
         allowSms.setVisibility(hasSms() ? View.GONE : View.VISIBLE);
         allowBattery.setVisibility(batteryFree() ? View.GONE : View.VISIBLE);
         boolean notifications = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
@@ -402,8 +415,9 @@ public class MainActivity extends Activity {
             s.append("\n").append(getString(R.string.state_queue, waiting));
         }
         status.setText(s.toString());
+        if (Prefs.paused(this)) { title.setText("Forwarding is paused"); badge.setText("PAUSED"); status.setText("Incoming payment messages stay queued. Resume forwarding when you are ready."); }
 
-        java.util.List<String[]> rows = Outbox.get(this).recent();
+        java.util.List<String[]> rows = dashboard.filteredActivity();
         StringBuilder signature = new StringBuilder();
         for (String[] row : rows) signature.append(row[0]).append(row[1]);
         if (!signature.toString().equals(lastActivity)) {
@@ -433,5 +447,7 @@ public class MainActivity extends Activity {
         activity.setVisibility(rows.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
+    @Override public void onBackPressed() { if (!dashboard.back()) super.onBackPressed(); }
+    void refreshDashboard() { render(); }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }

@@ -27,10 +27,13 @@ final class Prefs {
     static boolean configured(Context c) { return key(c).length() == 40; }
 
     static void save(Context c, String url, String key, String senders) {
+        if (!url.trim().equals(url(c)) || !key.trim().equals(key(c))) sp(c).edit().remove("lastOkAt").remove("lastProblem").apply();
         sp(c).edit().putString("url", url.trim().equals(DEFAULT_URL) ? "" : url.trim()).putString("key", key.trim())
                 .putString("senders", senders.trim().isEmpty() ? DEFAULT_SENDERS : senders.trim()).apply();
     }
 
+    static boolean paused(Context c) { return sp(c).getBoolean("paused", false); }
+    static void paused(Context c, boolean value) { sp(c).edit().putBoolean("paused", value).apply(); }
     static long lastOkAt(Context c) { return sp(c).getLong("lastOkAt", 0); }
     static String lastProblem(Context c) { return sp(c).getString("lastProblem", ""); }
 

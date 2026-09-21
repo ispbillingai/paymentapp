@@ -1,80 +1,166 @@
-<?xml version="1.0" ?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:background="@color/paper">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp" android:paddingBottom="32dp">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:layout_marginBottom="26dp">
-            <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@drawable/brand_mark" android:importantForAccessibility="no"/>
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginStart="10dp">
-                <TextView style="@style/Heading" android:text="@string/brand_name" android:textSize="20sp"/>
-                <TextView style="@style/Eyebrow" android:text="@string/forwarder_label"/>
-            </LinearLayout>
+<?xml version='1.0' encoding='utf-8'?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/paper">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:id="@+id/app_shell">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="12dp">
+      <Button android:layout_width="48dp" android:layout_height="wrap_content" android:id="@+id/menu_open" android:text="@string/dash_0" style="@style/SecondaryButton" android:layout_marginTop="0dp" android:contentDescription="Open navigation menu" />
+      <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:layout_marginBottom="0dp" android:layout_weight="1" android:layout_marginStart="12dp">
+        <ImageView android:layout_width="40dp" android:layout_height="40dp" android:src="@drawable/brand_mark" android:importantForAccessibility="no" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginStart="10dp">
+          <TextView style="@style/Heading" android:text="@string/brand_name" android:textSize="20sp" />
+          <TextView style="@style/Eyebrow" android:text="@string/forwarder_label" />
         </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/hero_background" android:padding="24dp">
-            <TextView android:id="@+id/connection_badge" style="@style/Eyebrow" android:text="@string/pill_setup" android:layout_width="wrap_content" android:background="@drawable/badge_background" android:paddingLeft="12dp" android:paddingRight="12dp" android:paddingTop="7dp" android:paddingBottom="7dp" android:textColor="@color/ink"/>
-            <TextView android:id="@+id/connection_title" style="@style/Heading" android:text="@string/hero_setup" android:textColor="@color/white" android:textSize="29sp" android:layout_marginTop="20dp"/>
-            <TextView android:id="@+id/status" style="@style/Body" android:text="@string/state_setup" android:textColor="#CEE0D2" android:layout_marginTop="10dp" android:accessibilityLiveRegion="polite"/>
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:baselineAligned="false" android:layout_marginTop="14dp">
-            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:layout_marginEnd="6dp" android:background="@drawable/soft_background">
-                <TextView style="@style/Body" android:text="@string/queue_label" android:textSize="11sp"/>
-                <TextView android:id="@+id/queue_count" style="@style/Heading" android:text="@string/zero_count" android:textSize="22sp" android:layout_marginTop="8dp"/>
-            </LinearLayout>
-            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:layout_marginEnd="6dp" android:background="@drawable/soft_background">
-                <TextView style="@style/Body" android:text="@string/last_contact_label" android:textSize="11sp"/>
-                <TextView android:id="@+id/last_contact" style="@style/Heading" android:text="@string/no_contact_placeholder" android:textSize="22sp" android:layout_marginTop="8dp"/>
-            </LinearLayout>
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
-            <TextView style="@style/Heading" android:text="@string/device_heading"/>
-            <TextView style="@style/Body" android:text="@string/device_caption" android:layout_marginTop="8dp"/>
-            <TextView android:id="@+id/sms_state" style="@style/Label" android:text="@string/sms_needed"/>
-            <Button android:id="@+id/allow_sms" style="@style/SecondaryButton" android:text="@string/btn_allow_sms"/>
-            <TextView android:id="@+id/battery_state" style="@style/Label" android:text="@string/battery_needed"/>
-            <Button android:id="@+id/allow_battery" style="@style/SecondaryButton" android:text="@string/btn_allow_battery"/>
-            <TextView android:id="@+id/notification_state" style="@style/Label" android:text="@string/notifications_needed"/>
-            <Button android:id="@+id/allow_notifications" style="@style/SecondaryButton" android:text="@string/notifications_needed"/>
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
-            <TextView style="@style/Heading" android:text="@string/settings_heading"/>
-            <TextView style="@style/Body" android:text="@string/settings_caption" android:layout_marginTop="8dp"/>
-            <Button android:id="@+id/settings_toggle" style="@style/SecondaryButton" android:text="@string/settings_open" android:layout_marginTop="14dp"/>
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/settings_fields">
-                <TextView style="@style/Label" android:text="@string/label_key"/>
-                <EditText android:id="@+id/key" style="@style/Input" android:hint="@string/hint_key" android:inputType="textPassword|textNoSuggestions" android:singleLine="true" android:saveEnabled="false"/>
-                <CheckBox android:id="@+id/show_key" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/show_pairing" android:textSize="13sp" android:textColor="@color/muted"/>
-                <TextView style="@style/Label" android:text="@string/label_senders"/>
-                <TextView style="@style/Body" android:text="@string/help_pick_networks" android:textSize="12sp" android:layout_marginTop="4dp"/>
-                <LinearLayout android:id="@+id/sender_boxes" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="6dp"/>
-                <TextView style="@style/Label" android:text="@string/label_sender_extra" android:layout_marginTop="12dp"/>
-                <EditText android:id="@+id/senders" style="@style/Input" android:inputType="textMultiLine|textNoSuggestions" android:minLines="2" android:hint="@string/hint_sender_extra"/>
-                <TextView style="@style/Body" android:text="@string/help_senders" android:textSize="12sp" android:layout_marginTop="8dp"/>
-                <Button android:id="@+id/advanced_toggle" style="@style/SecondaryButton" android:text="@string/advanced_open" android:layout_marginTop="16dp"/>
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/advanced" android:visibility="gone">
-                    <TextView style="@style/Label" android:text="@string/label_url"/>
-                    <EditText android:id="@+id/url" style="@style/Input" android:inputType="textUri" android:singleLine="true" android:hint="@string/hint_url"/>
-                    <TextView style="@style/Body" android:text="@string/help_url" android:layout_marginTop="8dp" android:textSize="12sp"/>
-                </LinearLayout>
-                <Button android:id="@+id/save" style="@style/PrimaryButton" android:text="@string/btn_save" android:layout_marginTop="20dp"/>
-            </LinearLayout>
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
-            <TextView style="@style/Heading" android:text="@string/update_heading"/>
-            <TextView android:id="@+id/update_state" style="@style/Body" android:layout_marginTop="8dp"/>
-            <TextView android:id="@+id/update_notes" style="@style/Body" android:textSize="12sp" android:layout_marginTop="8dp" android:visibility="gone"/>
-            <ProgressBar android:id="@+id/update_progress" android:layout_width="match_parent" android:layout_height="wrap_content" style="?android:attr/progressBarStyleHorizontal" android:max="100" android:layout_marginTop="14dp" android:visibility="gone"/>
-            <Button android:id="@+id/update_action" style="@style/SecondaryButton" android:text="@string/update_check" android:layout_marginTop="14dp"/>
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
-            <TextView style="@style/Heading" android:text="@string/label_activity"/>
-            <TextView style="@style/Body" android:text="@string/activity_caption" android:layout_marginTop="8dp"/>
-            <TextView android:id="@+id/activity" style="@style/Body" android:text="@string/activity_empty" android:layout_marginTop="16dp"/>
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/activity_rows"/>
-        </LinearLayout>
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp" android:layout_marginTop="20dp">
-            <TextView style="@style/Heading" android:text="@string/privacy_heading" android:textSize="17sp"/>
-            <TextView style="@style/Body" android:text="@string/privacy_short" android:layout_marginTop="8dp"/>
-            <TextView style="@style/Body" android:text="@string/privacy" android:textSize="12sp" android:layout_marginTop="14dp"/>
-            <Button android:id="@+id/help" style="@style/SecondaryButton" android:text="@string/help_link" android:layout_marginTop="16dp"/>
-            <TextView style="@style/Body" android:text="@string/footer_note" android:textSize="11sp" android:gravity="center" android:layout_marginTop="22dp"/>
-        </LinearLayout>
+      </LinearLayout>
     </LinearLayout>
-</ScrollView>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:id="@+id/page_scroll">
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Eyebrow" android:text="@string/dash_1" android:layout_marginTop="8dp" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_2" android:layout_marginTop="8dp" android:id="@+id/page_title" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/page_overview" android:visibility="visible">
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/hero_background" android:padding="24dp" android:layout_marginTop="16dp">
+            <TextView android:id="@+id/connection_badge" style="@style/Eyebrow" android:text="@string/pill_setup" android:layout_width="wrap_content" android:background="@drawable/badge_background" android:paddingLeft="12dp" android:paddingRight="12dp" android:paddingTop="7dp" android:paddingBottom="7dp" android:textColor="@color/ink" />
+            <TextView android:id="@+id/connection_title" style="@style/Heading" android:text="@string/hero_setup" android:textColor="@color/white" android:textSize="25sp" android:layout_marginTop="20dp" />
+            <TextView android:id="@+id/status" style="@style/Body" android:text="@string/state_setup" android:textColor="#CEE0D2" android:layout_marginTop="10dp" android:accessibilityLiveRegion="polite" />
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:baselineAligned="false" android:layout_marginTop="14dp">
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:layout_marginEnd="6dp" android:background="@drawable/soft_background">
+              <TextView style="@style/Body" android:text="@string/queue_label" android:textSize="11sp" />
+              <TextView android:id="@+id/queue_count" style="@style/Heading" android:text="@string/zero_count" android:textSize="22sp" android:layout_marginTop="8dp" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:layout_marginEnd="6dp" android:background="@drawable/soft_background">
+              <TextView style="@style/Body" android:text="@string/last_contact_label" android:textSize="11sp" />
+              <TextView android:id="@+id/last_contact" style="@style/Heading" android:text="@string/no_contact_placeholder" android:textSize="22sp" android:layout_marginTop="8dp" />
+            </LinearLayout>
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="10dp" android:baselineAligned="false">
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:padding="16dp" android:background="@drawable/soft_background" android:layout_marginEnd="6dp">
+              <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_3" android:layout_marginTop="8dp" />
+              <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_4" android:layout_marginTop="8dp" android:id="@+id/delivered_today" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:padding="16dp" android:background="@drawable/soft_background" android:layout_marginEnd="6dp">
+              <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_5" android:layout_marginTop="8dp" />
+              <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_6" android:layout_marginTop="8dp" android:id="@+id/retries_today" />
+            </LinearLayout>
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="18dp" android:layout_marginTop="14dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_7" android:layout_marginTop="8dp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_8" android:layout_marginTop="8dp" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/chart_period" android:text="@string/dash_9" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+            <com.ispledger.paymentapp.ActivityChart android:layout_width="match_parent" android:layout_height="170dp" android:id="@+id/forwarding_chart" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_10" android:layout_marginTop="8dp" android:id="@+id/chart_summary" />
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="18dp" android:layout_marginTop="14dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_11" android:layout_marginTop="8dp" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/test_connection" android:text="@string/dash_12" style="@style/PrimaryButton" android:layout_marginTop="10dp" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/open_connection" android:text="@string/dash_13" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/pause_forwarding" android:text="@string/dash_14" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_15" android:layout_marginTop="8dp" android:id="@+id/quick_feedback" android:accessibilityLiveRegion="polite" />
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="18dp" android:layout_marginTop="14dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_16" android:layout_marginTop="8dp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_17" android:layout_marginTop="8dp" android:id="@+id/setup_summary" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/open_diagnostics" android:text="@string/dash_18" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+          </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/page_connection" android:visibility="gone">
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
+            <TextView style="@style/Heading" android:text="@string/settings_heading" />
+            <TextView style="@style/Body" android:text="@string/settings_caption" android:layout_marginTop="8dp" />
+            <Button android:id="@+id/settings_toggle" style="@style/SecondaryButton" android:text="@string/settings_open" android:layout_marginTop="14dp" android:visibility="gone" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/settings_fields">
+              <TextView style="@style/Label" android:text="@string/label_key" />
+              <EditText android:id="@+id/key" style="@style/Input" android:hint="@string/hint_key" android:inputType="textPassword|textNoSuggestions" android:singleLine="true" android:saveEnabled="false" />
+              <CheckBox android:id="@+id/show_key" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/show_pairing" android:textSize="13sp" android:textColor="@color/muted" />
+              <Button android:id="@+id/save" style="@style/PrimaryButton" android:text="@string/dash_save_test" android:layout_marginTop="20dp" />
+              <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_19" android:layout_marginTop="8dp" android:id="@+id/connection_result" android:accessibilityLiveRegion="polite" />
+              <TextView style="@style/Label" android:text="@string/label_senders" />
+              <TextView style="@style/Body" android:text="@string/help_pick_networks" android:textSize="12sp" android:layout_marginTop="4dp" />
+              <LinearLayout android:id="@+id/sender_boxes" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="6dp" />
+              <TextView style="@style/Label" android:text="@string/label_sender_extra" android:layout_marginTop="12dp" />
+              <EditText android:id="@+id/senders" style="@style/Input" android:inputType="textMultiLine|textNoSuggestions" android:minLines="2" android:hint="@string/hint_sender_extra" />
+              <TextView style="@style/Body" android:text="@string/help_senders" android:textSize="12sp" android:layout_marginTop="8dp" />
+              <Button android:id="@+id/advanced_toggle" style="@style/SecondaryButton" android:text="@string/advanced_open" android:layout_marginTop="16dp" />
+              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/advanced" android:visibility="gone">
+                <TextView style="@style/Label" android:text="@string/label_url" />
+                <EditText android:id="@+id/url" style="@style/Input" android:inputType="textUri" android:singleLine="true" android:hint="@string/hint_url" />
+                <TextView style="@style/Body" android:text="@string/help_url" android:layout_marginTop="8dp" android:textSize="12sp" />
+              </LinearLayout>
+            </LinearLayout>
+          </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/page_queue" android:visibility="gone">
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="18dp" android:layout_marginTop="14dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_20" android:layout_marginTop="8dp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_21" android:layout_marginTop="8dp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_22" android:layout_marginTop="8dp" android:id="@+id/queue_summary" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/retry_queue" android:text="@string/dash_23" style="@style/PrimaryButton" android:layout_marginTop="10dp" />
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/queue_rows" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/page_activity" android:visibility="gone">
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
+            <TextView style="@style/Heading" android:text="@string/label_activity" />
+            <TextView style="@style/Body" android:text="@string/activity_caption" android:layout_marginTop="8dp" />
+            <EditText android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/activity_search" style="@style/Input" android:hint="Search recent activity" android:inputType="text" android:singleLine="true" android:layout_marginTop="14dp" />
+            <TextView android:id="@+id/activity" style="@style/Body" android:text="@string/activity_empty" android:layout_marginTop="16dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/activity_rows" />
+          </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/page_diagnostics" android:visibility="gone">
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
+            <TextView style="@style/Heading" android:text="@string/device_heading" />
+            <TextView style="@style/Body" android:text="@string/device_caption" android:layout_marginTop="8dp" />
+            <TextView android:id="@+id/sms_state" style="@style/Label" android:text="@string/sms_needed" />
+            <Button android:id="@+id/allow_sms" style="@style/SecondaryButton" android:text="@string/btn_allow_sms" />
+            <TextView android:id="@+id/battery_state" style="@style/Label" android:text="@string/battery_needed" />
+            <Button android:id="@+id/allow_battery" style="@style/SecondaryButton" android:text="@string/btn_allow_battery" />
+            <TextView android:id="@+id/notification_state" style="@style/Label" android:text="@string/notifications_needed" />
+            <Button android:id="@+id/allow_notifications" style="@style/SecondaryButton" android:text="@string/notifications_needed" />
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="18dp" android:layout_marginTop="14dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_24" android:layout_marginTop="8dp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_25" android:layout_marginTop="8dp" android:id="@+id/diagnostics_text" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/share_diagnostics" android:text="@string/dash_26" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+            <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/android_settings" android:text="@string/dash_27" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+          </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/page_updates" android:visibility="gone">
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="22dp" android:layout_marginTop="18dp">
+            <TextView style="@style/Heading" android:text="@string/update_heading" />
+            <TextView android:id="@+id/update_state" style="@style/Body" android:layout_marginTop="8dp" />
+            <TextView android:id="@+id/update_notes" style="@style/Body" android:textSize="12sp" android:layout_marginTop="8dp" android:visibility="gone" />
+            <ProgressBar android:id="@+id/update_progress" android:layout_width="match_parent" android:layout_height="wrap_content" style="?android:attr/progressBarStyleHorizontal" android:max="100" android:layout_marginTop="14dp" android:visibility="gone" />
+            <Button android:id="@+id/update_action" style="@style/SecondaryButton" android:text="@string/update_check" android:layout_marginTop="14dp" />
+          </LinearLayout>
+          <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/download_fallback" android:text="@string/dash_28" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_29" android:layout_marginTop="8dp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:id="@+id/page_help" android:visibility="gone">
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="12dp" android:layout_marginTop="20dp">
+            <TextView style="@style/Heading" android:text="@string/privacy_heading" android:textSize="17sp" />
+            <TextView style="@style/Body" android:text="@string/privacy_short" android:layout_marginTop="8dp" />
+            <TextView style="@style/Body" android:text="@string/privacy" android:textSize="12sp" android:layout_marginTop="14dp" />
+            <Button android:id="@+id/help" style="@style/SecondaryButton" android:text="@string/help_link" android:layout_marginTop="16dp" />
+            <TextView style="@style/Body" android:text="@string/footer_note" android:textSize="11sp" android:gravity="center" android:layout_marginTop="22dp" />
+          </LinearLayout>
+          <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/contact_support" android:text="@string/dash_30" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+        </LinearLayout>
+      </LinearLayout>
+    </ScrollView>
+  </LinearLayout>
+  <View android:layout_width="match_parent" android:layout_height="match_parent" android:id="@+id/nav_scrim" android:background="#770C241D" android:visibility="gone" android:clickable="true" android:focusable="true" />
+  <ScrollView android:layout_width="280dp" android:layout_height="match_parent" android:id="@+id/nav_drawer" android:background="@color/brand_dark" android:visibility="gone" android:elevation="16dp" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Heading" android:text="@string/dash_31" android:layout_marginTop="8dp" android:textColor="@color/white" />
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Eyebrow" android:text="@string/dash_32" android:layout_marginTop="8dp" android:textColor="@color/lime" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/menu_close" android:text="@string/dash_33" style="@style/SecondaryButton" android:layout_marginTop="10dp" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/nav_overview" android:text="@string/dash_34" style="@style/SecondaryButton" android:layout_marginTop="4dp" android:drawableStart="@drawable/nav_overview" android:drawablePadding="14dp" android:gravity="center_vertical|start" android:background="@drawable/nav_item" android:textColor="@color/white" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/nav_connection" android:text="@string/dash_35" style="@style/SecondaryButton" android:layout_marginTop="4dp" android:drawableStart="@drawable/nav_connection" android:drawablePadding="14dp" android:gravity="center_vertical|start" android:background="@drawable/nav_item" android:textColor="@color/white" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/nav_queue" android:text="@string/dash_36" style="@style/SecondaryButton" android:layout_marginTop="4dp" android:drawableStart="@drawable/nav_queue" android:drawablePadding="14dp" android:gravity="center_vertical|start" android:background="@drawable/nav_item" android:textColor="@color/white" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/nav_activity" android:text="@string/dash_37" style="@style/SecondaryButton" android:layout_marginTop="4dp" android:drawableStart="@drawable/nav_activity" android:drawablePadding="14dp" android:gravity="center_vertical|start" android:background="@drawable/nav_item" android:textColor="@color/white" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/nav_diagnostics" android:text="@string/dash_38" style="@style/SecondaryButton" android:layout_marginTop="4dp" android:drawableStart="@drawable/nav_diagnostics" android:drawablePadding="14dp" android:gravity="center_vertical|start" android:background="@drawable/nav_item" android:textColor="@color/white" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/nav_updates" android:text="@string/dash_39" style="@style/SecondaryButton" android:layout_marginTop="4dp" android:drawableStart="@drawable/nav_updates" android:drawablePadding="14dp" android:gravity="center_vertical|start" android:background="@drawable/nav_item" android:textColor="@color/white" />
+      <Button android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/nav_help" android:text="@string/dash_40" style="@style/SecondaryButton" android:layout_marginTop="4dp" android:drawableStart="@drawable/nav_help" android:drawablePadding="14dp" android:gravity="center_vertical|start" android:background="@drawable/nav_item" android:textColor="@color/white" />
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" style="@style/Body" android:text="@string/dash_41" android:layout_marginTop="8dp" android:textColor="#CEE0D2" />
+    </LinearLayout>
+  </ScrollView>
+</FrameLayout>

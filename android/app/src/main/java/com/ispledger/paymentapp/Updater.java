@@ -56,8 +56,10 @@ final class Updater {
         HttpURLConnection con = null;
         try {
             con = (HttpURLConnection) new URL(MANIFEST).openConnection();
-            con.setConnectTimeout(15000);
-            con.setReadTimeout(20000);
+            con.setConnectTimeout(8000);
+            con.setReadTimeout(10000);
+            con.setUseCaches(false);
+            con.setRequestProperty("Cache-Control", "no-cache");
             con.setRequestProperty("Accept", "application/json");
             if (con.getResponseCode() != 200) {
                 return null;

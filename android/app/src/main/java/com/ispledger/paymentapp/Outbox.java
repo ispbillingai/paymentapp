@@ -22,6 +22,7 @@ final class Outbox extends SQLiteOpenHelper {
         String body;
         long sentAt;
         int sim;
+        int attempts;
     }
 
     private static Outbox instance;
@@ -34,17 +35,33 @@ final class Outbox extends SQLiteOpenHelper {
     }
 
     private Outbox(Context c) {
-        super(c, "outbox.db", null, 1);
+        super(c, "outbox.db", null, 2);
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, body TEXT, sent_at INTEGER, sim INTEGER, attempts INTEGER DEFAULT 0)");
         db.execSQL("CREATE TABLE activity (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, line TEXT)");
+        createStats(db);
     }
 
     @Override
-    public void onUpgrade(SQLiteDatabase db, int from, int to) {}
+    public void onUpgrade(SQLiteDatabase db, int from, int to) { if (from < 2) createStats(db); }
+    private void createStats(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS daily_stats (day TEXT PRIMARY KEY, delivered INTEGER NOT NULL DEFAULT 0, retries INTEGER NOT NULL DEFAULT 0)");
+    }
+    static String day(long at) { return new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date(at)); }
+    private void count(SQLiteDatabase db, String column) {
+        String day = day(System.currentTimeMillis());
+        db.execSQL("INSERT OR IGNORE INTO daily_stats(day) VALUES (?)", new Object[]{day});
+        db.execSQL("UPDATE daily_stats SET " + column + " = " + column + " + 1 WHERE day = ?", new Object[]{day});
+        db.execSQL("DELETE FROM daily_stats WHERE day < ?", new Object[]{day(System.currentTimeMillis() - 90L*86400000)});
+    }
+    synchronized int[] stats(String day) {
+        try(Cursor c = getReadableDatabase().rawQuery("SELECT delivered,retries FROM daily_stats WHERE day = ?",new String[]{day})) {
+            return c.moveToFirst() ? new int[]{c.getInt(0),c.getInt(1)} : new int[]{0,0};
+        }
+    }
 
     synchronized void add(String sender, String body, long sentAt, int sim) {
         ContentValues v = new ContentValues();
@@ -58,7 +75,7 @@ final class Outbox extends SQLiteOpenHelper {
     synchronized List<Item> pending(int limit) {
         List<Item> out = new ArrayList<>();
         try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT id, sender, body, sent_at, sim FROM outbox ORDER BY id LIMIT " + limit, null)) {
+                "SELECT id, sender, body, sent_at, sim, attempts FROM outbox ORDER BY id LIMIT " + limit, null)) {
             while (c.moveToNext()) {
                 Item i = new Item();
                 i.id = c.getLong(0);
@@ -66,6 +83,7 @@ final class Outbox extends SQLiteOpenHelper {
                 i.body = c.getString(2);
                 i.sentAt = c.getLong(3);
                 i.sim = c.getInt(4);
+                i.attempts = c.getInt(5);
                 out.add(i);
             }
         }
@@ -73,11 +91,21 @@ final class Outbox extends SQLiteOpenHelper {
     }
 
     synchronized void delivered(long id) {
-        getWritableDatabase().delete("outbox", "id = ?", new String[]{String.valueOf(id)});
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            if (db.delete("outbox", "id = ?", new String[]{String.valueOf(id)}) > 0) count(db,"delivered");
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
     }
 
     synchronized void failed(long id) {
-        getWritableDatabase().execSQL("UPDATE outbox SET attempts = attempts + 1 WHERE id = " + id);
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.execSQL("UPDATE outbox SET attempts = attempts + 1 WHERE id = ?", new Object[]{id});
+            count(db,"retries"); db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
     }
 
     synchronized int waiting() {
