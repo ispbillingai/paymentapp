@@ -196,12 +196,66 @@
       ? name + ' has its networks built in, ' + example.primary + ' and ' + example.secondary + ' among them, so you pick yours and start.'
       : 'In ' + name + ' you connect by naming the sender your payment messages arrive from, and amounts are read in ' + example.currency + '.');
   }
+  /**
+   * The visitor's own country, first in the coverage cards.
+   *
+   * The cards are written in a fixed order, so whoever was reading had to look
+   * past three other markets for their own, if it was there at all. Theirs comes
+   * first now, and is made on the spot when it has no card of its own. What such
+   * a card says is what they would actually get: built-in networks only where
+   * there are built-in networks, and the custom sender everywhere else.
+   */
+  const cardHolder = document.querySelector('.coverage-cards');
+  const cardBrowser = document.getElementById('coverage-browser');
+  const writtenOrder = cardHolder ? Array.from(cardHolder.querySelectorAll('.country-card')) : [];
+  function leadWithCountry(country) {
+    if (!cardHolder) return;
+    const made = cardHolder.querySelector('[data-country-made]');
+    if (made && made.remove) made.remove();
+    if (!country) {
+      // Nothing known: back to the order the page was written in.
+      writtenOrder.forEach(card => cardHolder.insertBefore(card, cardBrowser));
+      return;
+    }
+    const existing = writtenOrder.find(card =>
+      (card.querySelector('.country-code')?.textContent || '') === country);
+    if (existing) {
+      cardHolder.prepend(existing);
+      return;
+    }
+    const example = exampleFor(country);
+    const builtIn = example.primary !== 'Mobile money';
+    const card = document.createElement('article');
+    card.className = 'country-card';
+    card.dataset.countryMade = country;
+    const code = document.createElement('span');
+    code.className = 'country-code';
+    code.textContent = country;
+    const body = document.createElement('div');
+    const heading = document.createElement('h3');
+    heading.textContent = nameOf(country) + ' ';
+    const currency = document.createElement('small');
+    currency.textContent = example.currency;
+    heading.append(currency);
+    const line = document.createElement('p');
+    line.textContent = builtIn
+      ? example.primary + ' · ' + example.secondary
+      : 'Name the sender your payment alerts arrive from';
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = builtIn ? 'Parser support included' : 'Custom sender';
+    body.append(heading, line, badge);
+    card.append(code, body);
+    cardHolder.prepend(card);
+  }
+
   function render(country, source) {
     // What the address said, and what we will show examples for: not always the
     // same country, because some are deliberately not offered here.
     const detected = countryCode(country);
     country = shown(country);
     localiseCopy(country, source === 'ip' || source === 'manual', detected);
+    leadWithCountry(source === 'ip' || source === 'manual' ? detected : '');
     const example = exampleFor(country);
     document.querySelectorAll('[data-example-money]').forEach(node => {
       const key = node.dataset.exampleMoney;
