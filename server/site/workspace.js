@@ -1204,8 +1204,10 @@
       const query = scope.id ? '?merchant_id=' + encodeURIComponent(scope.id) : '';
       try {
         const data = await api('/v1/portal/numbers' + query);
-        table('number-records', numberColumns, data.numbers,
-          'No numbers yet. Add the number your customers send money to.');
+        table(el('number-records'), numberColumns, data.numbers, {
+          title: 'No numbers yet',
+          body: 'Add the number your customers send money to, so the payment page can show it.',
+        });
       } catch (e) {
         show('number-form-error', e.message);
       }
