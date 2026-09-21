@@ -1,0 +1,27 @@
+<section class="portal-main"><header class="portal-top"><div><p class="micro-label">PLATFORM OWNER</p><h1>Merchants</h1></div><span id="portal-user"></span></header>
+
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Add a merchant</h2><p>The webhook address is verified before the account is created, so events can only ever be sent somewhere the operator controls.</p></div></div>
+<form id="merchant-form" class="portal-form" novalidate>
+  <div class="field-row">
+    <div class="field"><label for="merchant-name">Business name</label><input id="merchant-name" type="text" required maxlength="120" autocomplete="off"></div>
+    <div class="field"><label for="merchant-country">Country</label><input id="merchant-country" type="text" required maxlength="60" placeholder="ghana" autocomplete="off"><small>Lower case, no spaces, as used in your billing platform.</small></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label for="merchant-dial">Dialling code</label><input id="merchant-dial" type="text" required inputmode="numeric" placeholder="233" autocomplete="off"><small>Digits only, without the plus.</small></div>
+    <div class="field"><label for="merchant-currency">Currency</label><input id="merchant-currency" type="text" required maxlength="3" placeholder="GHS" autocomplete="off"><small>Three-letter code.</small></div>
+  </div>
+  <div class="field"><label for="merchant-webhook">Webhook address</label><input id="merchant-webhook" type="url" required placeholder="https://their-billing-system.example/gateway" autocomplete="off"><small>Must answer the verification request with the value it receives.</small></div>
+  <div class="form-actions"><button class="button button-dark button-small" type="submit">Verify and create</button></div>
+</form>
+<div class="credential-reveal" id="merchant-reveal" hidden><p class="micro-label">CREDENTIALS — SHOWN ONCE</p>
+<dl class="detail-list"><dt>Merchant ID</dt><dd><code id="new-merchant-id"></code></dd><dt>API key</dt><dd><code id="new-merchant-key"></code></dd><dt>Signing secret</dt><dd><code id="new-merchant-secret"></code></dd></dl>
+<div class="button-row"><button class="copy-button" type="button" data-copy="new-merchant-key">Copy API key</button><button class="copy-button" type="button" data-copy="new-merchant-secret">Copy secret</button></div>
+<p>Hand these to the merchant now. Neither the key nor the secret can be shown again.</p></div>
+<p id="merchant-form-error" class="form-error" role="alert" hidden></p>
+</section>
+
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Connected merchants</h2><p>Every business registered on the gateway.</p></div><button id="merchants-refresh" class="copy-button" type="button">Refresh</button></div>
+<div id="merchant-records"></div>
+</section>
+
+<p id="operations-error" class="form-error" role="alert" hidden></p></section>

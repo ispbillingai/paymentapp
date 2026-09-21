@@ -39,3 +39,115 @@
 @media(max-width:740px){.resource-page,.sandbox-page{padding-block:32px 60px}.resource-layout{display:block}.resource-nav{position:static;margin-bottom:28px}.resource-cards,.sandbox-grid{grid-template-columns:1fr}.resource-header{padding-top:20px}.resource-header h1,.sandbox-heading h1{font-size:43px}.sandbox-heading{flex-direction:column;gap:12px}.sandbox-toolbar{align-items:flex-start;flex-direction:column}.resource-section p{font-size:15px}.sandbox-card{padding:25px 21px}.sandbox-card.dark h2{font-size:33px}.resource-header .lead,.sandbox-heading>div>p:last-child{font-size:16px}}
 
 .operational-panel{margin-top:22px;padding:0 22px 22px}.operational-panel>.panel-heading{padding-inline:0}.operational-panel>p{font-size:12px}.operational-panel select{padding:8px;border:1px solid #ced9c7;border-radius:5px;color:#234c3a;background:white}.operational-panel .table-wrap{margin-bottom:0}.operational-panel a{font-size:11px;color:var(--green)}.operational-panel .button-row{margin:0}.operational-panel table{min-width:480px}
+
+/* ------------------------------------------------------------------ workspace
+   The signed-in pages. Charts are drawn as inline SVG by workspace.js, so the
+   colours and type live here with the rest of the design rather than in script. */
+.portal-nav-aux{margin-top:14px;padding-top:14px;border-top:1px solid #ffffff1a}
+.portal-metrics small a{color:var(--green);font-weight:650}
+.portal-metrics article{display:flex;flex-direction:column;justify-content:space-between}
+.portal-metrics strong{letter-spacing:-.045em}
+.portal-payment-list{border-top:1px solid #edf0e9}
+.portal-empty{padding:26px 22px}
+.portal-empty strong{display:block;font-size:14px;color:var(--ink)}
+.portal-empty p{font-size:12px;margin-top:5px}
+.portal-empty.quiet{padding:6px 0 2px;font-size:12px}
+
+/* state labels in tables */
+.state-chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:650;white-space:nowrap;background:var(--soft);color:var(--muted)}
+.state-chip.good{background:#e8f2dd;color:#416d38}
+.state-chip.warn{background:#fff0d7;color:#8a5f23}
+.state-chip.bad{background:#fdecec;color:#96312c}
+.row-actions{display:flex;gap:6px;justify-content:flex-end}
+.copy-button.danger{background:#fdf1ef;border-color:#f0cfc7;color:#9b3d2d}
+.copy-button.danger:hover{background:#fbe4df}
+.copy-button.active{background:var(--dark);border-color:var(--dark);color:#fff}
+.copy-button:disabled{opacity:.5}
+
+/* forms inside the workspace */
+.portal-form{padding:0 0 4px}
+.portal-form.narrow{max-width:430px}
+.portal-form .field:first-child{margin-top:6px}
+.portal-form .form-actions{justify-content:flex-start;gap:12px;margin-top:24px}
+.portal-search{min-height:37px;padding:7px 11px;border:1px solid #ced9c7;border-radius:5px;background:#fff;color:var(--ink);font-size:12px;min-width:220px}
+.form-ok{background:#eef6e6;border:1px solid #cfe4bd;color:#3f6b36;border-radius:7px;padding:13px 15px;margin-top:18px;font-size:12px;line-height:1.7}
+
+/* a credential, shown once */
+.credential-reveal{border:1px solid #cfe0bd;background:#f6fbef;border-radius:9px;padding:19px 20px;margin-top:22px}
+.credential-reveal code{display:block;margin:10px 0 14px;padding:12px 14px;background:#fff;border:1px solid #dde7d4;border-radius:6px;font:600 12px ui-monospace,Consolas,monospace;word-break:break-all;color:var(--ink)}
+.credential-reveal p{font-size:11px;line-height:1.75;margin-top:12px}
+.credential-reveal .detail-list code{margin:0}
+
+/* the merchant a platform owner is acting for */
+.scope-picker{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:13px 17px;margin-bottom:18px}
+.scope-picker label{font-size:11px;font-weight:650;color:var(--muted);white-space:nowrap}
+.scope-picker select{min-height:38px;padding:7px 11px;border:1px solid #ced9c7;border-radius:5px;background:#fff;color:var(--ink);font-size:13px;min-width:230px}
+.scope-empty{font-size:12px;margin:0}
+
+/* key/value detail panels */
+.detail-list{display:grid;grid-template-columns:auto 1fr;gap:10px 22px;margin:0;padding:0 22px 22px}
+.detail-list dt{font-size:11px;font-weight:650;color:var(--muted)}
+.detail-list dd{margin:0;font-size:13px;word-break:break-word}
+.detail-list dd code{font:600 12px ui-monospace,Consolas,monospace}
+.account-grid{grid-template-columns:1fr 1fr}
+
+/* what is still outstanding */
+.portal-setup{background:#fff;border:1px solid var(--line);border-radius:10px;margin-top:18px;overflow:hidden}
+.setup-steps{list-style:none;margin:0;padding:0 22px 20px;display:grid;gap:9px;counter-reset:step}
+.setup-steps li{display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600}
+.setup-steps li a{color:var(--green)}
+.setup-steps li a:hover{text-decoration:underline;text-underline-offset:4px}
+.setup-steps li.done{color:var(--muted);font-weight:400}
+.step-mark{display:flex;align-items:center;justify-content:center;flex:0 0 20px;height:20px;border-radius:50%;border:1px solid #cdd9c5;font-size:10px;color:#4b7340;background:#fff}
+.setup-steps li.done .step-mark{background:#e8f2dd;border-color:#cfe4bd}
+.pay-to-summary h2{font-size:18px;margin:6px 0 4px}
+.pay-to-summary p{font-size:12px;line-height:1.7;margin-bottom:12px}
+
+/* charts */
+.chart-panel{margin-top:18px}
+.chart-holder{padding:0 18px}
+.chart{display:block;width:100%;height:auto}
+.chart .grid{stroke:#e9eee4;stroke-width:1}
+.chart .axis{font-size:10px;fill:#8a9684;font-family:Inter,"Segoe UI",Arial,sans-serif}
+.chart .bar{transition:opacity .15s}
+.chart .bar.matched{fill:#3f7a4f}
+.chart .bar.pending{fill:#e0b256}
+.chart .bar.empty{fill:#e4e9df}
+.chart .column:hover .bar{opacity:.72}
+.chart-legend{display:flex;gap:20px;padding:4px 22px 20px;font-size:11px;color:var(--muted)}
+.chart-legend .swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px}
+.chart-legend .swatch.matched{background:#3f7a4f}
+.chart-legend .swatch.pending{background:#e0b256}
+.chart-range{gap:6px}
+.chart-grid{grid-template-columns:1fr 1fr}
+.chart-grid .portal-panel{padding-bottom:20px}
+.bar-list{list-style:none;margin:0;padding:0 22px;display:grid;gap:11px}
+.bar-list li{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(0,1.6fr) auto;gap:14px;align-items:center;font-size:12px}
+.bar-label{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{display:block;height:9px;border-radius:999px;background:#eef2ea;overflow:hidden}
+.bar-track i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#4a8258,#6aa768)}
+.bar-list b{font-size:12px;font-weight:650;min-width:28px;text-align:right}
+
+/* confirming with a password */
+.portal-dialog{position:fixed;inset:0;z-index:120;background:#0d2b229c;display:flex;align-items:center;justify-content:center;padding:20px}
+.portal-dialog[hidden]{display:none}
+.portal-dialog-box{width:min(430px,100%);background:#fff;border-radius:12px;padding:26px 26px 24px;box-shadow:0 30px 70px #0b2b1e42}
+.portal-dialog-box h2{font-size:20px}
+.dialog-detail{font-size:12.5px;line-height:1.75;margin-top:10px}
+.portal-dialog-box .form-actions{margin-top:22px}
+.portal-dialog-box .form-error{margin-top:14px}
+
+@media (max-width:1100px){
+  .account-grid,.chart-grid{grid-template-columns:1fr}
+  .detail-list{grid-template-columns:1fr;gap:3px 0}
+  .detail-list dd{margin-bottom:9px}
+}
+@media (max-width:760px){
+  .scope-picker{flex-direction:column;align-items:stretch}
+  .scope-picker select{min-width:0;width:100%}
+  .portal-search{min-width:0;width:100%}
+  .chart-holder{padding:0 10px}
+  .panel-heading{flex-direction:column;align-items:flex-start;gap:12px}
+  .operational-panel .button-row{width:100%}
+  .row-actions{justify-content:flex-start}
+}

@@ -157,7 +157,8 @@ try {
     if ($path === '/v1/portal/operations' && $method === 'GET') {
         $user=portalSession(); if(!$user)fail('unauthorized','Sign in to continue.',401);
         $where=$user['role']==='owner'?'1=1':'merchant_id='.(int)$user['merchant_id'];
-        out(['devices'=>Db::rows("SELECT public_id,label,provider,status,last_seen FROM devices WHERE $where ORDER BY id DESC LIMIT 50"),
+        // deviceOut is what the API returns everywhere else, so the workspace shows the same fields.
+        out(['devices'=>array_map(['Gateway','deviceOut'],Db::rows("SELECT * FROM devices WHERE $where ORDER BY id DESC LIMIT 50")),
           'webhooks'=>Db::rows("SELECT event_id,type,status,attempts,last_code,created_at FROM webhook_deliveries WHERE $where ORDER BY id DESC LIMIT 30"),
           'keys'=>Db::rows("SELECT hint,status,last_used_at,created_at FROM api_keys WHERE $where ORDER BY id DESC LIMIT 30")]);
     }
@@ -167,9 +168,273 @@ try {
         $status=$_GET['status']??'';
         if(in_array($status,['matched','unmatched'],true)){ $where.=' AND status=?';$args[]=$status; }
         $before=max(0,(int)($_GET['before']??0)); if($before){$where.=' AND id<?';$args[]=$before;}
-        $rows=Db::rows("SELECT id,public_id,trx_id,amount,currency,reference,status,reversed,received_at FROM payments WHERE $where ORDER BY id DESC LIMIT 51",$args);
+        // A typed search looks only at the fields a person would recognise on a receipt.
+        $q=trim((string)($_GET['q']??''));
+        if($q!==''){
+            $like='%'.str_replace(['\\','%','_'],['\\\\','\%','\_'],substr($q,0,60)).'%';
+            $where.=' AND (payer_name LIKE ? OR payer_msisdn LIKE ? OR reference LIKE ? OR trx_id LIKE ?)';
+            array_push($args,$like,$like,$like,$like);
+        }
+        $rows=Db::rows("SELECT id,public_id,trx_id,amount,currency,reference,payer_name,payer_msisdn,provider,status,reversed,hold_reason,received_at FROM payments WHERE $where ORDER BY id DESC LIMIT 51",$args);
         $more=count($rows)>50; $rows=array_slice($rows,0,50);
         out(['payments'=>$rows,'next_before'=>$more?(int)end($rows)['id']:null]);
+    }
+
+    /**
+     * Figures for the overview charts: one row per day, plus the split by network
+     * and by state. Drawn on the page from these numbers, so no chart library and
+     * no third-party request is involved.
+     */
+    if ($path === '/v1/portal/insights' && $method === 'GET') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $where = $user['role'] === 'owner' ? '1=1' : 'merchant_id=' . (int) $user['merchant_id'];
+        $days = min(90, max(7, (int) ($_GET['days'] ?? 30)));
+        $from = date('Y-m-d 00:00:00', time() - ($days - 1) * 86400);
+        $daily = Db::rows("SELECT DATE(received_at) day, COUNT(*) count, COALESCE(SUM(amount),0) total,
+                SUM(status='matched') matched, SUM(status<>'matched') pending
+            FROM payments WHERE $where AND kind='credit' AND reversed=0 AND received_at >= ?
+            GROUP BY DATE(received_at) ORDER BY day", [$from]);
+        // Days without a payment still need a point, or the shape of the chart lies.
+        $byDay = [];
+        foreach ($daily as $row) $byDay[$row['day']] = $row;
+        $series = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $day = date('Y-m-d', time() - $i * 86400);
+            $row = $byDay[$day] ?? null;
+            $series[] = ['day' => $day, 'count' => (int) ($row['count'] ?? 0), 'total' => (float) ($row['total'] ?? 0),
+                         'matched' => (int) ($row['matched'] ?? 0), 'pending' => (int) ($row['pending'] ?? 0)];
+        }
+        $providers = Db::rows("SELECT provider, COUNT(*) count, COALESCE(SUM(amount),0) total FROM payments
+            WHERE $where AND kind='credit' AND reversed=0 AND received_at >= ? GROUP BY provider ORDER BY count DESC LIMIT 8", [$from]);
+        foreach ($providers as $i => $row) $providers[$i]['label'] = Parser::providerLabel($row['provider']);
+        $holds = Db::rows("SELECT hold_reason, COUNT(*) count FROM payments
+            WHERE $where AND status <> 'matched' AND reversed=0 AND received_at >= ? GROUP BY hold_reason ORDER BY count DESC LIMIT 6", [$from]);
+        $currency = Db::row("SELECT MAX(currency) currency FROM payments WHERE $where");
+        out(['days' => $days, 'series' => $series, 'providers' => $providers, 'holds' => $holds,
+             'currency' => $currency['currency'] ?: 'USD']);
+    }
+
+    // ---------------------------------------------- workspace: account and credentials
+    /**
+     * The merchant behind the signed-in session, or null for an owner, who has no
+     * merchant of their own. Anything that issues a credential needs one.
+     */
+    $portalMerchant = static function (array $user) {
+        if ($user['merchant_id'] === null) return null;
+        return Db::row("SELECT * FROM merchants WHERE id = ?", [(int) $user['merchant_id']]);
+    };
+    /** Issuing or replacing a credential asks for the account password again. */
+    $confirmPassword = static function (array $user, array $in) {
+        $given = (string) ($in['password'] ?? '');
+        if ($given === '' || !password_verify($given, $user['password_hash'])) {
+            usleep(250000);
+            fail('password_required', 'Enter your account password to confirm this change.', 403);
+        }
+    };
+
+    if ($path === '/v1/portal/account' && $method === 'GET') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $merchant = $portalMerchant($user);
+        $providers = [];
+        if ($merchant) {
+            foreach (array_keys(Parser::defaultSenders($merchant['dial_code'])) as $code) {
+                $providers[] = ['code' => $code, 'label' => Parser::providerLabel($code)];
+            }
+            $providers[] = ['code' => 'other', 'label' => 'Another network (type its sender name)'];
+        }
+        out([
+            'user' => ['email' => $user['email'], 'phone' => $user['phone'], 'role' => $user['role'],
+                       'created_at' => $user['created_at'], 'last_login_at' => $user['last_login_at']],
+            'merchant' => $merchant ? ['id' => $merchant['public_id'], 'name' => $merchant['name'], 'country' => $merchant['country'],
+                'dial_code' => $merchant['dial_code'], 'currency' => $merchant['currency'], 'webhook_url' => $merchant['webhook_url'],
+                'created_at' => $merchant['created_at'], 'pay_to' => Gateway::payTo((int) $merchant['id'])] : null,
+            'providers' => $providers,
+        ]);
+    }
+
+    if ($path === '/v1/portal/password' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['password', 'new_password']);
+        $confirmPassword($user, $in);
+        $new = (string) ($in['new_password'] ?? '');
+        if (strlen($new) < 12 || strlen($new) > 72) fail('weak_password', 'Use a new password between 12 and 72 bytes.');
+        if (hash_equals((string) $in['password'], $new)) fail('same_password', 'Choose a password you have not used here before.');
+        // Every other session is signed out, so a stolen session cannot outlive the change.
+        $token = $_COOKIE['isp_pay_session'] ?? '';
+        Db::run("UPDATE portal_users SET password_hash = ? WHERE id = ?", [password_hash($new, PASSWORD_DEFAULT), (int) $user['id']]);
+        Db::run("DELETE FROM portal_sessions WHERE user_id = ? AND token_hash <> ?", [(int) $user['id'], hash('sha256', $token)]);
+        out(['ok' => true, 'other_sessions_ended' => true]);
+    }
+
+    /**
+     * Platform owners have no merchant of their own, so they name the merchant they
+     * are acting for. Everyone else may only ever act on their own.
+     */
+    $targetMerchant = static function (array $user, array $in) use ($portalMerchant) {
+        if ($user['role'] !== 'owner') return $portalMerchant($user);
+        $wanted = (string) ($in['merchant_id'] ?? '');
+        if ($wanted === '') return null;
+        return Db::row("SELECT * FROM merchants WHERE public_id = ?", [$wanted]);
+    };
+
+    /** Which networks are built in for one merchant's dialling code. */
+    if ($path === '/v1/portal/senders' && $method === 'GET') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $merchant = $user['role'] === 'owner'
+            ? Db::row("SELECT * FROM merchants WHERE public_id = ?", [(string) ($_GET['merchant_id'] ?? '')])
+            : $portalMerchant($user);
+        if (!$merchant) fail('no_merchant', 'Choose a merchant to see its networks.', 409);
+        $providers = [];
+        foreach (array_keys(Parser::defaultSenders($merchant['dial_code'])) as $code) {
+            $providers[] = ['code' => $code, 'label' => Parser::providerLabel($code)];
+        }
+        $providers[] = ['code' => 'other', 'label' => 'Another network (type its sender name)'];
+        out(['providers' => $providers]);
+    }
+
+    if ($path === '/v1/portal/merchants' && $method === 'GET') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        if ($user['role'] !== 'owner') fail('forbidden', 'Only a platform owner can list merchants.', 403);
+        out(['merchants' => Db::rows("SELECT m.public_id id, m.name, m.country, m.dial_code, m.currency, m.webhook_url, m.created_at,
+                (SELECT COUNT(*) FROM devices d WHERE d.merchant_id = m.id) devices,
+                (SELECT COUNT(*) FROM api_keys k WHERE k.merchant_id = m.id AND k.status = 'active') keys_active,
+                (SELECT COUNT(*) FROM payments p WHERE p.merchant_id = m.id) payments
+            FROM merchants m ORDER BY m.id DESC LIMIT 200")]);
+    }
+
+    /**
+     * Creating a merchant from inside the workspace. The webhook still has to answer
+     * the challenge, so a merchant can never be pointed at an address its operator
+     * does not control; this only removes the need to do it before having an account.
+     */
+    if ($path === '/v1/portal/merchants' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        if ($user['role'] !== 'owner') fail('forbidden', 'Only a platform owner can add a merchant here.', 403);
+        $in = body(); requireTextFields($in, ['name', 'country', 'dial_code', 'currency', 'webhook_url', 'password']);
+        $confirmPassword($user, $in);
+        $name = trim((string) ($in['name'] ?? ''));
+        $dial = preg_replace('/\D+/', '', (string) ($in['dial_code'] ?? ''));
+        $url = trim((string) ($in['webhook_url'] ?? ''));
+        if ($name === '' || $dial === '' || !filter_var($url, FILTER_VALIDATE_URL)) fail('bad_request', 'A business name, dialling code and webhook address are all required.');
+        if (!preg_match('/^[A-Za-z]{3}$/', (string) ($in['currency'] ?? ''))) fail('bad_currency', 'currency must be a three-letter currency code.');
+        if (in_array($dial, (array) Config::get('blocked_dial_codes', []), true)) fail('country_not_supported', 'Direct Number is not offered in this country.', 403);
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if ($scheme !== 'https' && !($scheme === 'http' && Config::get('allow_insecure_webhooks', false))) fail('https_required', 'The webhook address must use https.');
+        try {
+            WebhookTarget::resolve($url, (bool) Config::get('allow_insecure_webhooks', false));
+        } catch (InvalidArgumentException $e) {
+            fail('bad_webhook_host', 'Use a publicly reachable webhook address without URL credentials or fragments.');
+        }
+        if (Db::row("SELECT id FROM merchants WHERE webhook_url = ?", [$url])) fail('merchant_exists', 'A merchant already delivers to that address.', 409);
+        $challenge = bin2hex(random_bytes(16));
+        $res = Gateway::httpPost($url, json_encode(['type' => 'challenge', 'challenge' => $challenge, 'nonce' => '']), ['Content-Type: application/json', 'X-Gateway-Event: challenge'], 10);
+        $echo = json_decode($res['body'], true);
+        if ($res['code'] !== 200 || !is_array($echo) || !is_string($echo['challenge'] ?? null) || !hash_equals($challenge, $echo['challenge'])) {
+            fail('challenge_failed', 'That address did not answer the verification request. Check it is live, then try again.', 422);
+        }
+        $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), $url);
+        out(['merchant_id' => $made['merchant']['public_id'], 'api_key' => $made['api_key'], 'webhook_secret' => $made['webhook_secret']], 201);
+    }
+
+    if ($path === '/v1/portal/keys' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['password', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', $user['role'] === 'owner' ? 'Choose the merchant this key is for.' : 'Live API keys belong to a merchant account. Complete live registration first.', 409);
+        $confirmPassword($user, $in);
+        $active = Db::row("SELECT COUNT(*) c FROM api_keys WHERE merchant_id = ? AND status = 'active'", [(int) $merchant['id']]);
+        if ((int) $active['c'] >= 5) fail('too_many_keys', 'You already have five active keys. Revoke one before creating another.', 409);
+        $key = Gateway::issueApiKey((int) $merchant['id']);
+        // Shown once. Only the hash is stored, so it cannot be retrieved later.
+        out(['api_key' => $key, 'hint' => substr($key, 0, 12)], 201);
+    }
+
+    if ($path === '/v1/portal/keys/revoke' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['hint', 'password', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'This account has no live API keys.', 409);
+        $confirmPassword($user, $in);
+        $n = Db::run("UPDATE api_keys SET status = 'revoked' WHERE merchant_id = ? AND hint = ? AND status = 'active'", [(int) $merchant['id'], (string) ($in['hint'] ?? '')]);
+        $n ? out(['ok' => true]) : fail('not_found', 'That key is not active on this account.', 404);
+    }
+
+    if ($path === '/v1/portal/devices' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body();
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', $user['role'] === 'owner' ? 'Choose the merchant this listener belongs to.' : 'Listener devices belong to a merchant account. Complete live registration first.', 409);
+        reply(Gateway::createDevice($merchant, $in), 201);
+    }
+
+    if ($path === '/v1/portal/devices/rotate' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['device_id', 'password', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'This account has no listener devices.', 409);
+        $confirmPassword($user, $in);
+        $r = Gateway::rotateDeviceKey($merchant, (string) ($in['device_id'] ?? ''));
+        $r ? out($r) : fail('not_found', 'Device not found.', 404);
+    }
+
+    if ($path === '/v1/portal/devices/revoke' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['device_id', 'password', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'This account has no listener devices.', 409);
+        $confirmPassword($user, $in);
+        Gateway::revokeDevice($merchant, (string) ($in['device_id'] ?? '')) ? out(['ok' => true]) : fail('not_found', 'Device not found.', 404);
+    }
+
+    /**
+     * Changing where events are delivered. The new address has to answer the same
+     * challenge as at registration, so events can never be pointed at an address
+     * that is not under the merchant's control. The signing secret is left alone;
+     * rotating it is a separate, deliberate step below.
+     */
+    if ($path === '/v1/portal/webhook' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['webhook_url', 'password', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'Webhook delivery is configured on a merchant account.', 409);
+        $confirmPassword($user, $in);
+        $url = trim((string) ($in['webhook_url'] ?? ''));
+        if (!filter_var($url, FILTER_VALIDATE_URL)) fail('bad_request', 'Enter the full https address that should receive events.');
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if ($scheme !== 'https' && !($scheme === 'http' && Config::get('allow_insecure_webhooks', false))) {
+            fail('https_required', 'The webhook address must use https.');
+        }
+        try {
+            WebhookTarget::resolve($url, (bool) Config::get('allow_insecure_webhooks', false));
+        } catch (InvalidArgumentException $e) {
+            fail('bad_webhook_host', 'Use a publicly reachable webhook address without URL credentials or fragments.');
+        }
+        $taken = Db::row("SELECT id FROM merchants WHERE webhook_url = ? AND id <> ?", [$url, (int) $merchant['id']]);
+        if ($taken) fail('webhook_in_use', 'Another merchant account already delivers to that address.', 409);
+        $ip = client_ip();
+        $recent = Db::row("SELECT COUNT(*) c FROM signups WHERE ip = ? AND created_at > ?", [$ip, date('Y-m-d H:i:s', time() - 3600)]);
+        if ((int) $recent['c'] >= 20) fail('too_many_attempts', 'Too many attempts. Please try again later.', 429);
+        Db::run("INSERT INTO signups (ip, created_at) VALUES (?, ?)", [$ip, date('Y-m-d H:i:s')]);
+        $challenge = bin2hex(random_bytes(16));
+        $res = Gateway::httpPost($url, json_encode(['type' => 'challenge', 'challenge' => $challenge, 'nonce' => '']), ['Content-Type: application/json', 'X-Gateway-Event: challenge'], 10);
+        $echo = json_decode($res['body'], true);
+        if ($res['code'] !== 200 || !is_array($echo) || !is_string($echo['challenge'] ?? null) || !hash_equals($challenge, $echo['challenge'])) {
+            fail('challenge_failed', 'That address did not answer the verification request. Check it is live, then try again.', 422);
+        }
+        Db::run("UPDATE merchants SET webhook_url = ? WHERE id = ?", [$url, (int) $merchant['id']]);
+        out(['ok' => true, 'webhook_url' => $url]);
+    }
+
+    /** A new signing secret, shown once. Existing deliveries in flight keep the old one. */
+    if ($path === '/v1/portal/webhook/secret' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['password', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'Webhook signing is configured on a merchant account.', 409);
+        $confirmPassword($user, $in);
+        $secret = 'whsec_' . bin2hex(random_bytes(24));
+        Db::run("UPDATE merchants SET webhook_secret = ? WHERE id = ?", [$secret, (int) $merchant['id']]);
+        out(['webhook_secret' => $secret]);
     }
 
     // ------------------------------------------------------------ phones

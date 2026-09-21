@@ -31,7 +31,7 @@
         <li><strong>Create an intent at checkout.</strong> Send the payer number, exact package amount and your account reference. Display the receiving number and registered name returned by the API.</li>
         <li><strong>Handle the payment event.</strong> Verify the signature, persist the event, and activate the package once. Keep connection failures available for recovery.</li>
       </ol>
-      <p>Built-in sender lists cover Uganda (<code>256</code>) and Ghana (<code>233</code>). Other networks can be configured with <code>provider: "other"</code> and their actual sender names, including in countries without a built-in list. Deployment country restrictions still apply; Kenya is excluded by the default configuration. Check <code>GET /v1/me</code> and <a href="#custom-network">validate your receipt format</a> before enabling automatic activation. Provider names identify message formats, not commercial partnerships.</p>
+      <p>Built-in sender lists cover Uganda (<code>256</code>) and Ghana (<code>233</code>). Other networks can be configured with <code>provider: "other"</code> and their actual sender names, including in countries without a built-in list. Deployment country restrictions still apply. Check <code>GET /v1/me</code> and <a href="#custom-network">validate your receipt format</a> before enabling automatic activation. Provider names identify message formats, not commercial partnerships.</p>
     </section>
     <section id="authentication" class="doc-section">
       <h2>Authentication</h2>

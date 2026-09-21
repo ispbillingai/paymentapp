@@ -10,6 +10,10 @@
     AOA:500,CDF:1000,GNF:5000,SLE:10,LRD:100,ETB:50,SSP:1000,SDG:500,SOS:500,ERN:10,
     DJF:100,KMF:250,CVE:50,STN:10,MRU:20,MAD:5,DZD:100,TND:2,LYD:2,EGP:20,MUR:20,
     SCR:10,GMD:20,USD:1,EUR:1,GBP:1,CAD:1,AUD:1,NZD:1,CHF:1,TRY:20,INR:50,JPY:100,KRW:1000};
+  /* Not offered, so never shown anywhere on this site: no example, no option,
+     no entry in the coverage list. The gateway refuses it server side too. */
+  const unavailable = new Set(['KE']);
+  const shown = code => code && !unavailable.has(code) ? code : '';
   const cacheKey = 'isp-pay:detected-country:v1';
   const preferenceKey = 'isp-pay:example-country:v1';
   function countryCode(value) {
@@ -69,23 +73,22 @@
     const browser = document.getElementById('coverage-browser');
     if (!browser) return;
     const BUILT_IN = {UG:'MTN MoMo · Airtel Money', GH:'MTN MoMo · Telecel Cash · AT Money'};
-    const NOT_OFFERED = {KE:'M-Pesa already reports payments directly'};
     let regionNames;
     try { regionNames = new Intl.DisplayNames(['en'], {type:'region'}); } catch (_) {}
     const label = code => (regionNames && regionNames.of(code)) || code;
 
-    const codes = Object.keys(currencies).filter(code => /^[A-Z]{2}$/.test(code))
+    const codes = Object.keys(currencies).filter(code => /^[A-Z]{2}$/.test(code) && !unavailable.has(code))
       .sort((a, b) => label(a).localeCompare(label(b)));
     const list = document.getElementById('coverage-scroll');
     const rows = codes.map(code => {
       const li = document.createElement('li');
-      const built = BUILT_IN[code], off = NOT_OFFERED[code];
+      const built = BUILT_IN[code];
       const cc = document.createElement('span'); cc.className = 'cc'; cc.textContent = code;
       const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = label(code);
       const cur = document.createElement('span'); cur.className = 'cur'; cur.textContent = currencies[code];
       const tag = document.createElement('span');
-      tag.className = 'tag' + (built ? ' built' : off ? ' off' : '');
-      tag.textContent = built ? 'Networks built in' : off ? 'Not offered' : 'Custom sender';
+      tag.className = 'tag' + (built ? ' built' : '');
+      tag.textContent = built ? 'Networks built in' : 'Custom sender';
       li.append(cc, nm, cur, tag);
       li.dataset.search = (label(code) + ' ' + code + ' ' + currencies[code]).toLowerCase();
       list.append(li);
@@ -118,9 +121,9 @@
     try { store = sessionStorage; } catch (_) {}
     detectCountry({fetcher:window.fetch && window.fetch.bind(window), storage:store})
       .then(result => {
-        const code = result && countryCode(result.country);
+        const code = shown(result && countryCode(result.country));
         if (!code) return;
-        const built = BUILT_IN[code], off = NOT_OFFERED[code];
+        const built = BUILT_IN[code];
         const badge = document.createElement('span');
         badge.className = 'country-code';
         badge.textContent = code;
@@ -128,8 +131,7 @@
         const h = document.createElement('h3');
         h.textContent = 'You are in ' + label(code);
         const p = document.createElement('p');
-        p.textContent = off ? off
-          : built ? built + ' · ready to pick'
+        p.textContent = built ? built + ' · ready to pick'
           : 'Name your network sender · amounts in ' + currencies[code];
         body.append(h, p);
         mine.append(badge, body);
@@ -146,7 +148,7 @@
   for (const [label, african] of [['Africa',true],['Other regions',false]]) {
     const group = document.createElement('optgroup');
     group.label = label;
-    Object.keys(currencies).filter(code => africanCountries.has(code) === african)
+    Object.keys(currencies).filter(code => africanCountries.has(code) === african && !unavailable.has(code))
       .sort((a,b) => nameOf(a).localeCompare(nameOf(b)))
       .forEach(code => {
         const option = document.createElement('option');
@@ -160,6 +162,7 @@
   try { sessionStore = sessionStorage; } catch (_) {}
   try { preferenceStore = localStorage; } catch (_) {}
   function render(country, source) {
+    country = shown(country);
     const example = exampleFor(country);
     document.querySelectorAll('[data-example-money]').forEach(node => {
       const key = node.dataset.exampleMoney;
@@ -172,8 +175,7 @@
     document.querySelectorAll('[data-example-currency]').forEach(node => { node.textContent = example.currency; });
     if (source === 'ip') selector.options[0].textContent = 'Automatic · ' + nameOf(country) + ' (' + example.currency + ')';
     else if (source === 'fallback') selector.options[0].textContent = 'Detect my country';
-    status.textContent = country === 'KE' ? 'Kenya example only · Direct Number is not offered in Kenya.'
-      : source === 'ip' ? 'Approximate IP location · sample amounts, not prices.'
+    status.textContent = source === 'ip' ? 'Approximate IP location · sample amounts, not prices.'
       : source === 'manual' ? 'Your selected country · sample amounts, not prices.'
       : source === 'loading' ? 'Finding your country · sample amounts, not prices.'
       : 'Location unavailable. Choose a country for local examples.';
