@@ -229,6 +229,11 @@ function renderPublicSite(string $path, string $method): void
     if ($isPortal) $html .= '<main id="main-content" class="portal-shell">' . portalNav($path) . file_get_contents($site . '/' . $name . '.html') . '</main>';
     else $html .= $found ? file_get_contents($site . '/' . $name . '.html') : '<main id="main-content" class="wrap page-shell error-page"><p class="eyebrow">404 · A MISSED CONNECTION</p><h1>Let’s get you<br>back on track.</h1><p>This page could not be found. Visit the homepage or find the endpoint you need in the developer documentation.</p><div class="button-row"><a class="button button-dark" href="/">Back to home ↗</a><a class="button button-outline" href="/docs">Read the docs</a></div></main>';
     if (!$standalone) $html .= file_get_contents($site . '/_footer.html');
+    // Page fragments include their own scripts. Version those URLs too, so a
+    // signup or verification change is never paired with an hour-old script.
+    foreach (['signup.js', 'verify-email.js', 'resend.js', 'portal.js', 'sandbox.js'] as $script) {
+        $html = str_replace('src="/assets/' . $script . '"', 'src="/assets/' . $script . '?v=' . filemtime($site . '/' . $script) . '"', $html);
+    }
     $html .= '</body></html>';
     echo str_replace(['{{YEAR}}', 'contact@ispbillingpay.com'], [date('Y'), $escape($contact)], $html);
 }
