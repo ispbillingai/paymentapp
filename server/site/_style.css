@@ -158,6 +158,7 @@
 .viewing-banner strong{color:#4c3d12}
 .viewing-banner .button{flex:0 0 auto;border-color:#ddc98f;background:#fff}
 .viewing-banner .button:hover{background:#faf2df}
+.email-verification-banner{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin:-12px 0 24px;padding:20px 22px;background:#eff7ea;border:1px solid #cbdcba;border-radius:11px}.email-verification-banner>div{flex:1 1 260px}.email-verification-banner .micro-label{color:#34754a}.email-verification-banner h2{font-size:19px;letter-spacing:-.02em;margin:3px 0 7px}.email-verification-banner p{font-size:13px;line-height:1.65}.email-verification-banner small{display:block;margin-top:8px;font-size:11px;color:#47735a;word-break:break-word}.email-verification-banner>.button{flex:0 0 auto}.email-verification-result{flex:1 0 100%;min-height:0;color:#315d43!important}.email-verification-popup .portal-dialog-box{width:min(475px,100%)}.email-verification-popup .verify-prompt-address{font-weight:700;color:#225a43;word-break:break-word}.email-verification-popup .form-actions{display:flex;flex-wrap:wrap;gap:10px}
 
 /* ------------------------------------------------------------ workspace shell
    Sidebar on a wide screen, the same sidebar as a drawer on a narrow one. It is

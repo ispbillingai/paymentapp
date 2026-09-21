@@ -32,35 +32,55 @@ final class EmailVerification
         if (!self::ready()) return false;
         // A fragment keeps the token out of web-server access logs and Referer headers.
         $url = 'https://ispbillingpay.com/verify-email#token=' . rawurlencode($token);
-        return self::deliver(self::message($email, $name, $url, false));
+        return self::deliver(self::message($email, $name, $url, 'verify'));
     }
 
     /** A safe preview for an existing account: no unusable activation link. */
     public static function sendPreview(string $email): bool
     {
         if (!self::ready()) return false;
-        return self::deliver(self::message($email, 'Francis', 'https://ispbillingpay.com/', true));
+        return self::deliver(self::message($email, 'Francis', 'https://ispbillingpay.com/', 'preview'));
     }
 
-    private static function message(string $email, string $name, string $url, bool $preview): array
+    /** Credential alert contains no API key, signing secret or password. */
+    public static function sendKeyCreated(string $email): bool
+    {
+        if (!self::ready()) return false;
+        return self::deliver(self::message($email, 'there', 'https://ispbillingpay.com/dashboard/developers', 'key'));
+    }
+
+    private static function message(string $email, string $name, string $url, string $kind): array
     {
         $safeName = htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $safeUrl = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $eyebrow = $preview ? 'EMAIL DESIGN PREVIEW' : 'SECURE ACCOUNT ACCESS';
-        $headline = $preview ? 'A better welcome starts here.' : 'One step to your workspace.';
-        $intro = $preview
-            ? 'This is a preview of the email new merchants receive when they create an ISP Billing Pay account.'
-            : 'Confirm your email address to activate your merchant workspace. Then you can manage payments, devices, and integrations in one place.';
-        $button = $preview ? 'Explore ISP Billing Pay' : 'Verify my email';
-        $note = $preview
-            ? 'This is a design preview. Your existing account needs no action.'
-            : 'For your security, this link expires in 24 hours and works only once.';
-        $closing = $preview
-            ? 'You received this preview because you requested an email design test.'
-            : 'Did not create an account? You can safely ignore this message.';
-        $preheader = $preview
-            ? 'A preview of the new ISP Billing Pay account email.'
-            : 'Confirm your address and open your merchant workspace.';
+        if ($kind === 'preview') {
+            $eyebrow = 'EMAIL DESIGN PREVIEW';
+            $headline = 'A better welcome starts here.';
+            $intro = 'This is a preview of the email new merchants receive when they create an ISP Billing Pay account.';
+            $button = 'Explore ISP Billing Pay';
+            $note = 'This is a design preview. Your existing account needs no action.';
+            $closing = 'You received this preview because you requested an email design test.';
+            $preheader = 'A preview of the new ISP Billing Pay account email.';
+            $subject = 'A preview of your new ISP Billing Pay email';
+        } elseif ($kind === 'key') {
+            $eyebrow = 'ACCOUNT SECURITY';
+            $headline = 'A new API key was created.';
+            $intro = 'Someone signed in to your ISP Billing Pay workspace and created a new API key. The key itself is never included in email.';
+            $button = 'Review API keys';
+            $note = 'If this was you, no action is needed. Store the key shown in your dashboard securely.';
+            $closing = 'Do not recognize this activity? Sign in, revoke the key, change your password, and contact support.';
+            $preheader = 'A new API key was created for your ISP Billing Pay workspace.';
+            $subject = 'New API key created for your ISP Billing Pay account';
+        } else {
+            $eyebrow = 'SECURE ACCOUNT ACCESS';
+            $headline = 'Verify to go live.';
+            $intro = 'Confirm your email address to activate live payments. You can sign in and set up API keys while you wait.';
+            $button = 'Verify my email';
+            $note = 'For your security, this link expires in 24 hours and works only once.';
+            $closing = 'Did not create an account? You can safely ignore this message.';
+            $preheader = 'Confirm your address to activate live payments.';
+            $subject = 'Confirm your ISP Billing Pay account';
+        }
         $html = <<<'HTML'
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ISP Billing Pay</title></head>
@@ -100,7 +120,7 @@ HTML;
         return [
             'sender' => ['name' => 'ISP Billing Pay', 'email' => 'no-reply@ispbillingpay.com'],
             'to' => [['email' => $email]],
-            'subject' => $preview ? 'A preview of your new ISP Billing Pay email' : 'Confirm your ISP Billing Pay account',
+            'subject' => $subject,
             'textContent' => $plain,
             'htmlContent' => $html,
         ];
@@ -142,7 +162,10 @@ HTML;
             $row = Db::row('SELECT user_id FROM portal_email_verifications WHERE token_hash=? AND expires_at>? FOR UPDATE',
                 [hash('sha256', $token), date('Y-m-d H:i:s')]);
             if (!$row) { $pdo->rollBack(); return false; }
+            $user = Db::row("SELECT merchant_id FROM portal_users WHERE id=? AND status='pending' FOR UPDATE", [(int) $row['user_id']]);
+            if (!$user) { $pdo->rollBack(); return false; }
             $n = Db::run("UPDATE portal_users SET status='active' WHERE id=? AND status='pending'", [(int) $row['user_id']]);
+            if ($user['merchant_id']) Db::run("UPDATE merchants SET status='active' WHERE id=? AND status='pending'", [(int) $user['merchant_id']]);
             Db::run('DELETE FROM portal_email_verifications WHERE user_id=?', [(int) $row['user_id']]);
             $pdo->commit();
             return $n === 1;

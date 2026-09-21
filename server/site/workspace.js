@@ -34,6 +34,55 @@
   }
   const post = (path, payload) => api(path, {method: 'POST', body: JSON.stringify(payload || {})});
 
+  // A pending merchant can finish setup, including key creation. The gateway
+  // accepts live traffic only after the email link activates the account.
+  function verificationPrompt(data) {
+    if (!data.user || data.user.email_verified !== false) return;
+    const main = document.querySelector('.portal-main');
+    if (!main || el('email-verification-banner')) return;
+    const banner = document.createElement('section');
+    banner.id = 'email-verification-banner';
+    banner.className = 'email-verification-banner';
+    banner.setAttribute('aria-label', 'Verify your email to activate live payments');
+    banner.innerHTML = '<div><span class="micro-label">ACTION NEEDED</span><h2>Verify your email to go live.</h2><p>Your dashboard is ready. You can create API keys and finish setup now; live payments and listener connections start after verification.</p><small></small></div><button type="button" class="button button-dark button-small">Resend verification email</button>';
+    banner.querySelector('small').textContent = 'Account email: ' + data.user.email;
+    const result = document.createElement('p');
+    result.className = 'email-verification-result';
+    result.setAttribute('role', 'status');
+    banner.append(result);
+    const resend = async button => {
+      button.disabled = true;
+      result.textContent = 'Sending a new link…';
+      try {
+        const response = await post('/v1/portal/resend-verification', {email: data.user.email});
+        result.textContent = response.message || 'Check your inbox for the new link.';
+      } catch (error) {
+        result.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    };
+    banner.querySelector('button').onclick = event => resend(event.currentTarget);
+    const header = main.querySelector('.portal-top');
+    if (header) header.insertAdjacentElement('afterend', banner);
+    else main.prepend(banner);
+
+    const once = 'isp-pay-verification-prompt:' + data.user.email;
+    try { if (sessionStorage.getItem(once)) return; sessionStorage.setItem(once, '1'); } catch (_) {}
+    const popup = document.createElement('div');
+    popup.className = 'portal-dialog email-verification-popup';
+    popup.innerHTML = '<div class="portal-dialog-box" role="dialog" aria-modal="true" aria-labelledby="verify-prompt-title"><p class="micro-label">CHECK YOUR INBOX</p><h2 id="verify-prompt-title">Set up now. Verify to go live.</h2><p class="dialog-detail">Your workspace is open, and you can create API keys. Use the link in your email to activate live payments. If it has not arrived, request another.</p><p class="dialog-detail verify-prompt-address"></p><div class="form-actions"><button type="button" class="button button-outline button-small verify-prompt-close">Continue setup</button><button type="button" class="button button-dark button-small verify-prompt-resend">Resend email</button></div></div>';
+    popup.querySelector('.verify-prompt-address').textContent = data.user.email;
+    popup.querySelector('.verify-prompt-close').onclick = () => popup.remove();
+    popup.querySelector('.verify-prompt-resend').onclick = async event => {
+      await resend(event.currentTarget);
+      popup.remove();
+    };
+    popup.addEventListener('keydown', event => { if (event.key === 'Escape') popup.remove(); });
+    document.body.append(popup);
+    popup.querySelector('.verify-prompt-close').focus();
+  }
+
   // ----------------------------------------------------------------- display
   function money(value, currency) {
     try {
@@ -259,6 +308,7 @@
       if (data.merchant && data.merchant.timezone) displayZone = data.merchant.timezone;
       viewingBanner(data.acting_as);
       shell(data);
+      verificationPrompt(data);
       return data;
     } catch (e) {
       problem(e.message);
@@ -1498,13 +1548,19 @@
     }
 
     el('key-create').onclick = async () => {
-      const password = await confirmPassword('Create a live API key',
-        'The key is shown once, immediately after this. Store it in your billing system before leaving the page.',
+      const password = await confirmPassword('Create an API key',
+        account && account.user.email_verified === false
+          ? 'The key is shown once. Save it now; it can be used after you verify your email.'
+          : 'The key is shown once, immediately after this. Store it in your billing system before leaving the page.',
         'Create key');
       if (!password) return;
       try {
         const data = await post('/v1/portal/keys', {password, merchant_id: scope.id});
         reveal('key-reveal', 'key-value', data.api_key);
+        el('key-create-notice').textContent = (data.email_notice_sent
+          ? 'A key-creation security alert was emailed to your account address. '
+          : 'The key was created, but the email alert could not be sent. ')
+          + (account && account.user.email_verified === false ? 'Verify your email before using this key for live payments.' : '');
         load();
       } catch (e) {
         problem(e.message);
