@@ -60,7 +60,7 @@ For a local page preview, run `php -S 127.0.0.1:8787 -t server/public server/pub
 
 Adding a built-in provider means adding its mobile money sender names and message formats to `server/src/Parser.php`, with real sample messages in hand. Custom senders let other countries begin integration without waiting for a built-in entry.
 
-Run `php server/tests/security_regression.php` for isolated matching and webhook-target checks; this uses SQLite in memory and does not access a live database. See [database guide](server/DATABASE.md) for index validation.
+Run `php server/tests/security_regression.php` for matching and webhook-target checks. Every database in this project is MySQL, tests included: the suite creates its own throwaway `gateway_test_*` database, uses it, and drops it. It never touches a live database, and it refuses to run against a database whose name does not begin `gateway_test_`. Point it somewhere other than a local MySQL with `GATEWAY_TEST_DSN`, `GATEWAY_TEST_USER` and `GATEWAY_TEST_PASS`. See [database guide](server/DATABASE.md) for index validation.
 
 The legacy `server/tests/e2e_local.sh` changes and drops tables in its configured gateway and billing databases, including `radius`. Run it only against disposable copies of both applications; it is not a safe check for an existing installation.
 

@@ -43,7 +43,7 @@ php server/tests/security_indexes.php
 php server/tests/security_regression.php
 ```
 
-The planner suite uses no database. The security suite uses isolated in-memory SQLite. The optional real-engine suite requires an explicitly supplied configuration (`GATEWAY_INDEX_TEST_CONFIG`) for an **empty** database whose name begins `gateway_test_`; it refuses the default configuration and non-empty databases:
+The planner suite uses no database. The security suite runs on MySQL, in a throwaway `gateway_test_*` database it creates and drops itself. The optional real-engine suite requires an explicitly supplied configuration (`GATEWAY_INDEX_TEST_CONFIG`) for an **empty** database whose name begins `gateway_test_`; it refuses the default configuration and non-empty databases:
 
 ```text
 php server/tests/security_mysql_indexes.php

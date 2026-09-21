@@ -1,6 +1,8 @@
 <?php
-/** Isolated regressions: in-memory SQLite only, no config or network access. */
+/** Isolated regressions on a throwaway MySQL database. No live data, no network.
+ * MySQL rather than another engine, so the tests run the same SQL the gateway does. */
 date_default_timezone_set('UTC');
+require __DIR__ . '/mysql_bootstrap.php';
 require dirname(__DIR__) . '/src/Parser.php';
 require dirname(__DIR__) . '/src/Gateway.php';
 
@@ -11,14 +13,12 @@ class Db
     public static $failEvent = false;
     public static function pdo()
     {
-        if (!self::$connection) self::$connection = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+        if (!self::$connection) self::$connection = TestDb::pdo();
         return self::$connection;
     }
     private static function statement($sql, $args)
     {
         if (self::$failEvent && strpos($sql, 'INSERT INTO webhook_deliveries') !== false) throw new RuntimeException('Injected outbox failure');
-        $sql = str_replace(' FOR UPDATE', '', $sql);
-        $sql = str_replace('ON DUPLICATE KEY UPDATE last_name = VALUES(last_name), last_seen = VALUES(last_seen)', 'ON CONFLICT(merchant_id, payer_key, reference) DO UPDATE SET last_name = excluded.last_name, last_seen = excluded.last_seen', $sql);
         $statement = self::pdo()->prepare($sql);
         $statement->execute($args);
         return $statement;
@@ -52,20 +52,25 @@ check($target['host'] === 'merchant.example' && $target['port'] === 8443 && $tar
 check(WebhookTarget::isPublicAddress('2606:4700:4700::1111'), 'Ordinary public IPv6 should be allowed.');
 check(WebhookTarget::resolve('http://127.0.0.1/hook', true)['address'] === '127.0.0.1', 'Explicit local testing mode should work.');
 
-Db::pdo()->exec("CREATE TABLE merchants (id INTEGER PRIMARY KEY, webhook_url TEXT, webhook_secret TEXT);
-    INSERT INTO merchants VALUES (1, '', 'test-only');
-    CREATE TABLE intents (id INTEGER PRIMARY KEY, public_id TEXT, merchant_id INTEGER, payer_key TEXT, amount NUMERIC, currency TEXT,
-        payer_name TEXT, payer_msisdn TEXT, reference TEXT, metadata TEXT, status TEXT, payment_id INTEGER DEFAULT 0, created_at TEXT, expires_at TEXT);
-    CREATE TABLE payments (id INTEGER PRIMARY KEY, public_id TEXT, merchant_id INTEGER, payer_key TEXT, amount NUMERIC, currency TEXT,
-        payer_name TEXT, payer_msisdn TEXT, reference TEXT DEFAULT '', status TEXT DEFAULT 'unmatched', kind TEXT DEFAULT 'credit',
-        reversed INTEGER DEFAULT 0, hold_reason TEXT DEFAULT '', match_rule TEXT DEFAULT '', name_check TEXT DEFAULT '', intent_id INTEGER DEFAULT 0,
-        matched_at TEXT, received_at TEXT, trx_id TEXT COLLATE NOCASE, source TEXT DEFAULT 'direct_number', provider TEXT DEFAULT 'mtn_ug', raw_message TEXT DEFAULT '',
-        device_id INTEGER DEFAULT 0, receiving_key TEXT DEFAULT '', sender TEXT DEFAULT '', parser TEXT DEFAULT '', sms_time TEXT, reversed_at TEXT,
-        UNIQUE(merchant_id, provider, receiving_key, trx_id));
-    CREATE TABLE payers (merchant_id INTEGER, payer_key TEXT, reference TEXT, last_name TEXT, last_seen TEXT, UNIQUE(merchant_id, payer_key, reference));
-    CREATE TABLE claims (merchant_id INTEGER, ip TEXT, trx_id TEXT, ok INTEGER, created_at TEXT);
-    CREATE TABLE webhook_deliveries (id INTEGER PRIMARY KEY, event_id TEXT, merchant_id INTEGER, type TEXT, payload TEXT,
-        status TEXT, attempts INTEGER, next_attempt_at TEXT, created_at TEXT, last_code INTEGER);");
+foreach ([
+    "CREATE TABLE merchants (id INT PRIMARY KEY, webhook_url VARCHAR(255), webhook_secret VARCHAR(191)) ENGINE=InnoDB",
+    "INSERT INTO merchants VALUES (1, '', 'test-only')",
+    "CREATE TABLE intents (id INT PRIMARY KEY, public_id VARCHAR(40), merchant_id INT, payer_key VARCHAR(12), amount DECIMAL(18,2), currency VARCHAR(5),
+        payer_name VARCHAR(100), payer_msisdn VARCHAR(20), reference VARCHAR(100), metadata TEXT, status VARCHAR(12), payment_id INT DEFAULT 0,
+        created_at DATETIME, expires_at DATETIME) ENGINE=InnoDB",
+    "CREATE TABLE payments (id INT PRIMARY KEY, public_id VARCHAR(40), merchant_id INT, payer_key VARCHAR(12), amount DECIMAL(18,2), currency VARCHAR(5),
+        payer_name VARCHAR(100), payer_msisdn VARCHAR(20), reference VARCHAR(100) DEFAULT '', status VARCHAR(12) DEFAULT 'unmatched', kind VARCHAR(10) DEFAULT 'credit',
+        reversed TINYINT DEFAULT 0, hold_reason VARCHAR(40) DEFAULT '', match_rule VARCHAR(15) DEFAULT '', name_check VARCHAR(10) DEFAULT '', intent_id INT DEFAULT 0,
+        matched_at DATETIME NULL, received_at DATETIME, trx_id VARCHAR(64), source VARCHAR(20) DEFAULT 'direct_number', provider VARCHAR(30) DEFAULT 'mtn_ug',
+        raw_message TEXT, device_id INT DEFAULT 0, receiving_key VARCHAR(20) DEFAULT '', sender VARCHAR(40) DEFAULT '', parser VARCHAR(30) DEFAULT '',
+        sms_time DATETIME NULL, reversed_at DATETIME NULL,
+        UNIQUE KEY uq_trx (merchant_id, provider, receiving_key, trx_id)) ENGINE=InnoDB",
+    "CREATE TABLE payers (merchant_id INT, payer_key VARCHAR(12), reference VARCHAR(100), last_name VARCHAR(100), last_seen DATETIME,
+        UNIQUE KEY uq_payer (merchant_id, payer_key, reference)) ENGINE=InnoDB",
+    "CREATE TABLE claims (merchant_id INT, ip VARCHAR(45), trx_id VARCHAR(64), ok TINYINT, created_at DATETIME) ENGINE=InnoDB",
+    "CREATE TABLE webhook_deliveries (id INT AUTO_INCREMENT PRIMARY KEY, event_id VARCHAR(40), merchant_id INT, type VARCHAR(40), payload MEDIUMTEXT,
+        status VARCHAR(10), attempts INT, next_attempt_at DATETIME, created_at DATETIME, last_code INT) ENGINE=InnoDB",
+] as $statement) Db::pdo()->exec($statement);
 function resetData() {
     foreach (['intents', 'payments', 'payers', 'claims', 'webhook_deliveries'] as $table) Db::run('DELETE FROM ' . $table);
 }

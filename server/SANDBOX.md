@@ -31,4 +31,4 @@ Reference research: Stripe's official testing documentation (https://docs.stripe
 
 ## Verification
 
-`php server/tests/security_sandbox.php` uses in-memory SQLite for key isolation, tenant isolation, repeat requests, conflict rejection, permitted lifecycle transitions and rollback when event persistence fails. The integration checks in this development task ran against a dedicated disposable MySQL database and local HTTP server. They did not use production credentials or payment records.
+`php server/tests/security_sandbox.php` uses a throwaway MySQL database for key isolation, tenant isolation, repeat requests, conflict rejection, permitted lifecycle transitions and rollback when event persistence fails. The integration checks in this development task ran against a dedicated disposable MySQL database and local HTTP server. They did not use production credentials or payment records.
