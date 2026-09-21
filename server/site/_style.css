@@ -236,3 +236,8 @@
 }
 .portal-bar-scope{border:0;cursor:pointer;font-family:inherit}
 .panel-heading p:not(.micro-label){font-size:13px;line-height:1.6;margin-top:6px;max-width:62ch}
+.scope-add.first{border-top:0;margin-top:0;padding-top:6px}
+.form-note{font-size:12px;line-height:1.7;margin-top:14px}
+.credential-reveal .detail-list{padding:0;margin:12px 0 14px}
+.credential-reveal .button-row .button{min-height:34px;padding:6px 14px;font-size:12px}
+.scope-picker[hidden]{display:none}

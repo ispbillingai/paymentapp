@@ -172,7 +172,7 @@ try {
         $shownId=$user['role']==='owner'?$user['acting_merchant_id']:$user['merchant_id'];
         $merchant=$shownId?Db::row("SELECT public_id,name,country,currency,webhook_url FROM merchants WHERE id=?",[(int)$shownId]):null;
         out(['totals'=>$totals,'user'=>['email'=>$user['email'],'role'=>$user['role']],
-             'acting_as'=>$user['role']==='owner'&&$merchant?['id'=>$merchant['public_id'],'name'=>$merchant['name']]:null, 'merchant'=>$merchant, 'metrics'=>['total'=>$summary['total'],'matched'=>(int)$summary['matched'],'unmatched'=>(int)$summary['unmatched'],'currency'=>$summary['currency']?:($merchant['currency']??'USD'),'devices'=>(int)$devices['total'],'online'=>(int)$devices['online']], 'payments'=>$payments]);
+             'acting_as'=>$user['role']==='owner'&&$merchant?['id'=>$merchant['public_id'],'name'=>$merchant['name'],'own'=>(int)$shownId===(int)$user['merchant_id']]:null, 'merchant'=>$merchant, 'metrics'=>['total'=>$summary['total'],'matched'=>(int)$summary['matched'],'unmatched'=>(int)$summary['unmatched'],'currency'=>$summary['currency']?:($merchant['currency']??'USD'),'devices'=>(int)$devices['total'],'online'=>(int)$devices['online']], 'payments'=>$payments]);
     }
 
     if ($path === '/v1/portal/operations' && $method === 'GET') {
@@ -268,16 +268,20 @@ try {
             }
             $providers[] = ['code' => 'other', 'label' => 'Another network (type its sender name)'];
         }
+        // An owner may also run a merchant account of their own on this same sign-in.
+        $own = ($user['role'] === 'owner' && $user['merchant_id'])
+            ? Db::row("SELECT id, public_id, name FROM merchants WHERE id = ?", [(int) $user['merchant_id']]) : null;
         $acting = null;
         if ($user['role'] === 'owner' && $user['acting_merchant_id'] && $merchant) {
-            $acting = ['id' => $merchant['public_id'], 'name' => $merchant['name']];
+            $acting = ['id' => $merchant['public_id'], 'name' => $merchant['name'], 'own' => $own && (int) $own['id'] === (int) $merchant['id']];
         }
         out([
             'user' => ['email' => $user['email'], 'phone' => $user['phone'], 'role' => $user['role'],
                        'created_at' => $user['created_at'], 'last_login_at' => $user['last_login_at']],
             'acting_as' => $acting,
+            'own_merchant' => $own ? ['id' => $own['public_id'], 'name' => $own['name']] : null,
             'merchant' => $merchant ? ['id' => $merchant['public_id'], 'name' => $merchant['name'], 'country' => $merchant['country'],
-                'dial_code' => $merchant['dial_code'], 'currency' => $merchant['currency'], 'webhook_url' => $merchant['webhook_url'],
+                'dial_code' => $merchant['dial_code'], 'currency' => $merchant['currency'], 'webhook_url' => (string) $merchant['webhook_url'],
                 'created_at' => $merchant['created_at'], 'pay_to' => Gateway::payTo((int) $merchant['id'])] : null,
             'providers' => $providers,
         ]);
@@ -387,6 +391,39 @@ try {
         }
         $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), $url);
         out(['merchant_id' => $made['merchant']['public_id'], 'api_key' => $made['api_key'], 'webhook_secret' => $made['webhook_secret']], 201);
+    }
+
+    /**
+     * The owner's own merchant account, on the same sign-in. It is created without a
+     * webhook, because the point is to have somewhere to set one up: the address is
+     * added afterwards under API keys and webhooks, where it still has to answer the
+     * challenge before it is saved. Until then payments are recorded and their
+     * events wait. The session moves straight into the new account.
+     */
+    if ($path === '/v1/portal/my-merchant' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        if ($user['role'] !== 'owner') fail('forbidden', 'This is for a platform owner adding a merchant account of their own.', 403);
+        if ($user['merchant_id']) fail('already_set_up', 'This sign-in already has a merchant account of its own.', 409);
+        $in = body(); requireTextFields($in, ['name', 'country', 'dial_code', 'currency', 'password']);
+        $confirmPassword($user, $in);
+        $name = trim((string) ($in['name'] ?? ''));
+        $dial = preg_replace('/\D+/', '', (string) ($in['dial_code'] ?? ''));
+        if ($name === '' || $dial === '') fail('bad_request', 'A business name and dialling code are required.');
+        if (!preg_match('/^[A-Za-z]{3}$/', (string) ($in['currency'] ?? ''))) fail('bad_currency', 'currency must be a three-letter currency code.');
+        if (in_array($dial, (array) Config::get('blocked_dial_codes', []), true)) fail('country_not_supported', 'Direct Number is not offered in this country.', 403);
+        $pdo = Db::pdo();
+        $pdo->beginTransaction();
+        try {
+            $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), '');
+            $linked = Db::run("UPDATE portal_users SET merchant_id = ? WHERE id = ? AND merchant_id IS NULL", [(int) $made['merchant']['id'], (int) $user['id']]);
+            if ($linked !== 1) { $pdo->rollBack(); fail('account_changed', 'This sign-in changed while the account was being created. Refresh and try again.', 409); }
+            Db::run("UPDATE portal_sessions SET acting_merchant_id = ? WHERE id = ?", [(int) $made['merchant']['id'], (int) $user['session_id']]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+        out(['merchant_id' => $made['merchant']['public_id'], 'name' => $made['merchant']['name'], 'api_key' => $made['api_key'], 'webhook_secret' => $made['webhook_secret']], 201);
     }
 
     if ($path === '/v1/portal/keys' && $method === 'POST') {
@@ -632,7 +669,7 @@ try {
             $providers[] = ['code' => $code, 'label' => Parser::providerLabel($code)];
         }
         out(['id' => $m['public_id'], 'name' => $m['name'], 'country' => $m['country'], 'dial_code' => $m['dial_code'], 'currency' => $m['currency'],
-             'webhook_url' => $m['webhook_url'], 'providers' => array_merge($providers, [['code' => 'other', 'label' => 'Another network (type its sender name below)']]), 'pay_to' => Gateway::payTo($m['id'])]);
+             'webhook_url' => (string) $m['webhook_url'], 'providers' => array_merge($providers, [['code' => 'other', 'label' => 'Another network (type its sender name below)']]), 'pay_to' => Gateway::payTo($m['id'])]);
     }
 
     if ($path === '/v1/devices' && $method === 'GET') {

@@ -5,7 +5,10 @@ CREATE TABLE IF NOT EXISTS merchants (
     country VARCHAR(40) NOT NULL DEFAULT '',
     dial_code VARCHAR(5) NOT NULL DEFAULT '',
     currency VARCHAR(5) NOT NULL DEFAULT '',
-    webhook_url VARCHAR(255) NOT NULL DEFAULT '',
+    -- NULL until the merchant sets one. It has to be NULL rather than empty: the
+    -- address is unique, and only NULL may repeat, so more than one merchant can
+    -- exist before its webhook does.
+    webhook_url VARCHAR(255) DEFAULT NULL,
     webhook_secret VARCHAR(80) NOT NULL DEFAULT '',
     status VARCHAR(10) NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL,

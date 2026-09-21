@@ -71,7 +71,7 @@ class Gateway
         Db::run(
             "INSERT INTO merchants (public_id, name, country, dial_code, currency, webhook_url, webhook_secret, status, created_at)
              VALUES (?,?,?,?,?,?,?, 'active', ?)",
-            [self::newId('mer'), substr($name, 0, 120), strtolower(substr($country, 0, 40)), preg_replace('/\D+/', '', $dialCode), strtoupper(substr($currency, 0, 5)), $webhookUrl, $secret, self::now()]
+            [self::newId('mer'), substr($name, 0, 120), strtolower(substr($country, 0, 40)), preg_replace('/\D+/', '', $dialCode), strtoupper(substr($currency, 0, 5)), (string) $webhookUrl === '' ? null : $webhookUrl, $secret, self::now()]
         );
         $id = Db::lastId();
         return ['merchant' => Db::row("SELECT * FROM merchants WHERE id = ?", [$id]), 'api_key' => self::issueApiKey($id), 'webhook_secret' => $secret];
@@ -656,7 +656,8 @@ class Gateway
             return true;
         }
         $code = 0;
-        if ($d['webhook_url'] !== '') {
+        // No address yet: nothing is sent, and the event waits for one like any other retry.
+        if ((string) $d['webhook_url'] !== '') {
             $t = time();
             $res = self::httpPost($d['webhook_url'], $d['payload'], [
                 'Content-Type: application/json',

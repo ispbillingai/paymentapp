@@ -255,7 +255,8 @@
       : owner ? 'All merchants'
       : data.merchant ? data.merchant.name : 'Developer account';
     el('scope-name').textContent = name;
-    el('scope-kind').textContent = data.acting_as ? 'VIEWING AS' : owner ? 'PLATFORM OWNER' : 'WORKSPACE';
+    el('scope-kind').textContent = data.acting_as ? (data.acting_as.own ? 'MY MERCHANT ACCOUNT' : 'VIEWING AS')
+      : owner ? 'PLATFORM OWNER' : 'WORKSPACE';
     el('scope-avatar').textContent = owner && !data.acting_as ? '∗' : initial(name);
     el('scope-switch').classList.toggle('acting', !!data.acting_as);
     const label = document.querySelector('.portal-top .micro-label');
@@ -296,17 +297,37 @@
       };
       return item;
     };
-    const heading = document.createElement('p');
-    heading.className = 'scope-heading';
-    heading.textContent = 'Switch view';
-    menu.append(heading, entry('All merchants', 'The whole gateway, as its owner', '', !data.acting_as));
-    merchants.forEach(merchant => menu.append(entry(merchant.name,
+    const heading = text => {
+      const node = document.createElement('p');
+      node.className = 'scope-heading';
+      node.textContent = text;
+      return node;
+    };
+    const isCurrent = id => !!data.acting_as && data.acting_as.id === id;
+    menu.append(heading('Platform'), entry('All merchants', 'The whole gateway, as its owner', '', !data.acting_as));
+
+    // The owner's own merchant account, on this same sign-in.
+    menu.append(heading('My account'));
+    const own = data.own_merchant;
+    if (own) {
+      menu.append(entry(own.name, 'Your own payments, keys and webhook', own.id, isCurrent(own.id)));
+    } else {
+      const setUp = document.createElement('a');
+      setUp.className = 'scope-add first';
+      setUp.href = '/dashboard/account#my-merchant';
+      setUp.textContent = 'Use this sign-in as a merchant too →';
+      menu.append(setUp);
+    }
+
+    const others = merchants.filter(merchant => !own || merchant.id !== own.id);
+    if (others.length) menu.append(heading('Other merchants'));
+    others.forEach(merchant => menu.append(entry(merchant.name,
       titleCase(merchant.country) + ' · ' + merchant.currency + ' · as this merchant sees it',
-      merchant.id, !!data.acting_as && data.acting_as.id === merchant.id)));
+      merchant.id, isCurrent(merchant.id))));
     const add = document.createElement('a');
     add.className = 'scope-add';
     add.href = '/dashboard/merchants';
-    add.textContent = merchants.length ? '+ Add another merchant' : 'No merchants yet · add your first one →';
+    add.textContent = '+ Add a merchant';
     menu.append(add);
 
     const close = () => { menu.hidden = true; button.setAttribute('aria-expanded', 'false'); };
@@ -332,8 +353,13 @@
     const text = document.createElement('p');
     const label = document.createElement('strong');
     label.textContent = acting.name;
-    text.append(document.createTextNode('Viewing as '), label,
-      document.createTextNode(' · you are seeing only this merchant’s payments, listeners and keys.'));
+    if (acting.own) {
+      text.append(document.createTextNode('You are in your own merchant account, '), label,
+        document.createTextNode('. Keys, listeners, webhook and payments here are yours.'));
+    } else {
+      text.append(document.createTextNode('Viewing as '), label,
+        document.createTextNode(' · you are seeing only this merchant’s payments, listeners and keys.'));
+    }
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'button button-outline button-small';
@@ -370,6 +396,14 @@
     if (!scope.owner) {
       scope.ready = !!(account && account.merchant);
       scope.id = null;
+      return scope;
+    }
+    // Inside one merchant's workspace, their own or another's, that merchant is the
+    // only target. Offering a chooser there would let a key land on someone else.
+    if (account.acting_as) {
+      scope.id = account.acting_as.id;
+      scope.ready = true;
+      scope.owner = false;
       return scope;
     }
     let merchants = [];
@@ -1152,6 +1186,47 @@
       ]);
     } else {
       el('account-no-merchant').hidden = false;
+    }
+
+    // An owner can run a merchant account of their own on this same sign-in.
+    const mine = el('my-merchant');
+    if (mine && data.user.role === 'owner') {
+      mine.hidden = false;
+      if (data.own_merchant) {
+        el('my-merchant-form').hidden = true;
+        el('my-merchant-ready').hidden = false;
+        el('my-merchant-name').textContent = data.own_merchant.name;
+        el('my-merchant-open').onclick = () => viewAs(data.own_merchant.id).catch(e => problem(e.message));
+      } else {
+        el('my-merchant-form').addEventListener('submit', async event => {
+          event.preventDefault();
+          show('my-merchant-error', '');
+          const password = await confirmPassword('Create your merchant account',
+            'It is created on this sign-in, and you are taken into it. You add your webhook afterwards, under API keys and webhooks.',
+            'Create my account');
+          if (!password) return;
+          const button = el('my-merchant-form').querySelector('button[type=submit]');
+          button.disabled = true;
+          try {
+            const made = await post('/v1/portal/my-merchant', {
+              name: el('mine-name').value.trim(),
+              country: el('mine-country').value.trim().toLowerCase(),
+              dial_code: el('mine-dial').value.trim(),
+              currency: el('mine-currency').value.trim().toUpperCase(),
+              password,
+            });
+            el('my-merchant-form').hidden = true;
+            el('mine-id').textContent = made.merchant_id;
+            el('mine-key').textContent = made.api_key;
+            el('mine-secret').textContent = made.webhook_secret;
+            el('my-merchant-reveal').hidden = false;
+            el('my-merchant-reveal').scrollIntoView({behavior: 'smooth', block: 'center'});
+          } catch (e) {
+            show('my-merchant-error', e.message);
+            button.disabled = false;
+          }
+        });
+      }
     }
 
     el('password-form').addEventListener('submit', async event => {
