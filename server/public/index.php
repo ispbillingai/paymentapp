@@ -402,7 +402,8 @@ try {
                        'created_at' => $user['created_at'], 'last_login_at' => $user['last_login_at']],
             'acting_as' => $acting,
             'own_merchant' => $own ? ['id' => $own['public_id'], 'name' => $own['name']] : null,
-            'merchant' => $merchant ? ['id' => $merchant['public_id'], 'name' => $merchant['name'], 'country' => $merchant['country'],
+            'timezones' => timezone_identifiers_list(DateTimeZone::AFRICA),
+            'merchant' => $merchant ? ['id' => $merchant['public_id'], 'name' => $merchant['name'], 'country' => $merchant['country'], 'timezone' => (string) $merchant['timezone'],
                 'dial_code' => $merchant['dial_code'], 'currency' => $merchant['currency'], 'webhook_url' => (string) $merchant['webhook_url'],
                 'created_at' => $merchant['created_at'], 'pay_to' => Gateway::payTo((int) $merchant['id'])] : null,
             'providers' => $providers,
@@ -552,6 +553,18 @@ try {
         out(['ok' => true, 'merchant_id' => $made['merchant']['public_id'], 'name' => $made['merchant']['name'], 'next' => '/dashboard'], 201);
     }
 
+    /** The zone this merchant reads times in, on every screen. */
+    if ($path === '/v1/portal/timezone' && $method === 'POST') {
+        $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
+        $in = body(); requireTextFields($in, ['timezone', 'merchant_id']);
+        $merchant = $targetMerchant($user, $in);
+        if (!$merchant) fail('no_merchant', 'A time zone belongs to a merchant account.', 409);
+        $zone = substr(trim((string) ($in['timezone'] ?? '')), 0, 64);
+        if ($zone !== '' && !in_array($zone, timezone_identifiers_list(), true)) fail('bad_timezone', 'That is not a time zone this service knows.');
+        Db::run("UPDATE merchants SET timezone = ? WHERE id = ?", [$zone, (int) $merchant['id']]);
+        out(['ok' => true, 'timezone' => $zone]);
+    }
+
     if ($path === '/v1/portal/keys' && $method === 'POST') {
         $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
         $in = body(); requireTextFields($in, ['password', 'merchant_id']);
@@ -681,6 +694,14 @@ try {
             [date('Y-m-d H:i:s'), substr(client_ip(), 0, 45), $version, $version, (int) $device['id']]
         );
         Gateway::reporting($device);
+        // A listener phone can set the merchant's zone, the same value the dashboard
+        // shows and edits, so the times on the phone and on the website agree.
+        if (isset($in['timezone']) && is_string($in['timezone']) && trim($in['timezone']) !== '') {
+            $zone = substr(trim($in['timezone']), 0, 64);
+            if (preg_match('#^[A-Za-z][A-Za-z0-9+_/-]{1,63}$#', $zone) && in_array($zone, timezone_identifiers_list(), true)) {
+                Db::run("UPDATE merchants SET timezone = ? WHERE id = ? AND timezone <> ?", [$zone, (int) $device['merchant_id'], $zone]);
+            }
+        }
         // The phone tells us the senders it is watching, so the two lists cannot drift
         // apart and quietly drop a payment. It grants nothing: this device already
         // states the sender of every message it reports.

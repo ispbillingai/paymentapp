@@ -6,6 +6,11 @@
 
 <section class="portal-panel operational-panel" id="my-merchant" hidden><div class="panel-heading"><div><p class="micro-label">MY MERCHANT ACCOUNT</p><h2>Your own merchant dashboard</h2><p id="my-merchant-text">Use this same email and password as a merchant too: your own keys, listener phones, webhook and payments. It takes a business name and a country.</p></div><button id="my-merchant-open" class="button button-dark button-small" type="button">Open my merchant dashboard</button></div></section>
 
+<section class="portal-panel operational-panel" id="timezone-row" hidden><div class="panel-heading"><div><h2>Time zone</h2><p>The zone times are read in: on this site, on your listener phones, and anywhere else this account is shown. A phone can set it too, and both write the same value.</p></div></div>
+<div class="field narrow"><label for="account-timezone">Show times in</label><select id="account-timezone"></select></div>
+<p id="timezone-ok" class="form-ok" role="status" hidden></p>
+</section>
+
 <section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Change your password</h2><p>Signing in elsewhere ends when you change it, on every other device.</p></div></div>
 <form id="password-form" class="portal-form narrow" novalidate>
   <div class="field"><label for="current-password">Current password</label><input id="current-password" type="password" required autocomplete="current-password"></div>

@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS merchants (
     -- exist before its webhook does.
     webhook_url VARCHAR(255) DEFAULT NULL,
     webhook_secret VARCHAR(80) NOT NULL DEFAULT '',
+    -- The zone this merchant reads times in. Set from the dashboard or from a
+    -- listener phone; both write the same value, so every screen agrees.
+    timezone VARCHAR(64) NOT NULL DEFAULT '',
     status VARCHAR(10) NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_mer_public (public_id),

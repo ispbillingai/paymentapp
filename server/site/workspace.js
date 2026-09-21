@@ -42,12 +42,25 @@
       return (currency || '') + ' ' + Number(value || 0).toFixed(2);
     }
   }
-  /** Stored times are UTC. Showing them in the reader's own zone avoids a silent hour's error. */
+  /**
+   * Stored times are UTC. They are drawn in the merchant's own zone when one is
+   * set, so this page, the listener phone and the billing system all say the same
+   * thing about the same moment; otherwise in the reader's own, as before.
+   */
+  let displayZone = '';
   function when(value) {
     if (!value) return '—';
     const at = new Date(String(value).replace(' ', 'T') + 'Z');
     if (isNaN(at)) return String(value);
-    return at.toLocaleString(undefined, {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+    const options = {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'};
+    if (displayZone) {
+      try {
+        return at.toLocaleString(undefined, Object.assign({timeZone: displayZone}, options));
+      } catch (_) {
+        // A zone this browser does not know must not blank the whole column.
+      }
+    }
+    return at.toLocaleString(undefined, options);
   }
   const titleCase = text => String(text || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 
@@ -208,6 +221,7 @@
       document.querySelectorAll('.portal-nav a[data-role]').forEach(link => {
         link.hidden = link.dataset.role !== data.user.role;
       });
+      if (data.merchant && data.merchant.timezone) displayZone = data.merchant.timezone;
       viewingBanner(data.acting_as);
       shell(data);
       return data;
@@ -1448,6 +1462,41 @@
       } else {
         open.onclick = () => openMyMerchant();
       }
+    }
+
+    // The zone every screen reads times in, including the listener phones.
+    const zonePicker = el('account-timezone');
+    if (zonePicker && data.merchant) {
+      el('timezone-row').hidden = false;
+      const blank = document.createElement('option');
+      blank.value = '';
+      blank.textContent = 'Use each reader’s own setting';
+      zonePicker.append(blank);
+      (data.timezones || []).forEach(zone => {
+        const option = document.createElement('option');
+        option.value = zone;
+        option.textContent = zone.replace('_', ' ');
+        zonePicker.append(option);
+      });
+      const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (own && !(data.timezones || []).includes(own)) {
+        const option = document.createElement('option');
+        option.value = own;
+        option.textContent = own.replace('_', ' ') + ' (this device)';
+        zonePicker.append(option);
+      }
+      zonePicker.value = data.merchant.timezone || '';
+      zonePicker.onchange = async () => {
+        try {
+          await post('/v1/portal/timezone', {timezone: zonePicker.value});
+          displayZone = zonePicker.value;
+          show('timezone-ok', zonePicker.value
+            ? 'Times are now shown in ' + zonePicker.value.replace('_', ' ') + ', here and on your listener phones.'
+            : 'Times now follow whatever each reader’s own device is set to.');
+        } catch (e) {
+          problem(e.message);
+        }
+      };
     }
 
     el('password-form').addEventListener('submit', async event => {

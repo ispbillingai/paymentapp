@@ -35,6 +35,11 @@ final class Uploader {
             body.put("version", BuildConfig.VERSION_NAME);
             // Keep the service's copy of this phone's sender list in step with ours.
             body.put("senders", Prefs.senders(c));
+            // And the zone the owner chose here, so the website reads times the same
+            // way this phone does. Empty means they have not chosen one.
+            if (!Prefs.timezone(c).isEmpty()) {
+                body.put("timezone", Prefs.timezone(c));
+            }
             int code = post(c, body);
             return explain(c, code);
         } catch (Exception e) {

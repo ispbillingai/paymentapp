@@ -1,5 +1,5 @@
 {
-  "version_code": 15,
-  "version_name": "1.5.0",
-  "notes": "Opening the app now offers an update when one is ready, so nobody has to know where the Updates page is. It asks at most once every six hours, and only when there is genuinely a newer build."
+  "version_code": 16,
+  "version_name": "1.5.1",
+  "notes": "The time zone you choose here is now the one your dashboard uses too, so the phone and the website agree about when a payment arrived. It can be set from either place."
 }
