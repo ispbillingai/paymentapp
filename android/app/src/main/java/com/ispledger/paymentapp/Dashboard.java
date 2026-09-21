@@ -74,6 +74,12 @@ final class Dashboard {
     }
     boolean back(){if(a.findViewById(R.id.nav_drawer).getVisibility()==View.VISIBLE){drawer(false);return true;}if(page!=0){navigate(0);return true;}return false;}
     void connectionFeedback(String message){label(R.id.connection_result,message);}
+
+    /** The result of a test, said where it cannot be missed. */
+    void connectionPopup(String problem, long took){
+        if(problem.isEmpty()) Popup.good(a,a.getString(R.string.connected_title),a.getString(R.string.connected_body),a.getString(R.string.connected_detail,(int)took));
+        else Popup.bad(a,a.getString(R.string.not_connected_title),problem);
+    }
     private void test(){
         if(testing)return;
         if(!Prefs.configured(a)){navigate(1);connectionFeedback("Paste the device key from your dashboard and tap Save key & test connection.");return;}
@@ -83,7 +89,9 @@ final class Dashboard {
         new Thread(() -> {String result=Uploader.ping(app);a.runOnUiThread(() -> {
             if(a.isFinishing()||a.isDestroyed())return;
             testing=false;a.findViewById(R.id.test_connection).setEnabled(true);label(R.id.test_connection,"Test connection");
-            label(R.id.quick_feedback,result.isEmpty()?"Connection verified · "+(SystemClock.elapsedRealtime()-start)+" ms. Device key accepted.":result);
+            long took=SystemClock.elapsedRealtime()-start;
+            label(R.id.quick_feedback,result.isEmpty()?"Connection verified · "+took+" ms. Device key accepted.":result);
+            connectionPopup(result,took);
             a.refreshDashboard();
         });}).start();
     }

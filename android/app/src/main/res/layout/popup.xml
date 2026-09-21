@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One centred card: a mark, a heading, a sentence, and a single way out. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/popup_card"
+    android:padding="26dp"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:id="@+id/popup_mark"
+        android:layout_width="74dp"
+        android:layout_height="74dp"
+        android:background="@drawable/popup_mark_good"
+        android:gravity="center"
+        android:textSize="34sp"
+        android:textColor="@color/brand"
+        android:text="@string/popup_tick"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/popup_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:gravity="center"
+        android:textSize="21sp"
+        android:textColor="@color/ink"
+        android:fontFamily="sans-serif-medium" />
+
+    <TextView
+        android:id="@+id/popup_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:textSize="14sp"
+        android:lineSpacingExtra="5dp"
+        android:textColor="@color/muted" />
+
+    <TextView
+        android:id="@+id/popup_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:padding="12dp"
+        android:background="@drawable/soft_background"
+        android:gravity="center"
+        android:textSize="12sp"
+        android:textColor="@color/ink"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/popup_ok"
+        style="@style/PrimaryButton"
+        android:layout_marginTop="22dp"
+        android:text="@string/popup_ok" />
+</LinearLayout>

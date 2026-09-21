@@ -203,7 +203,30 @@ public class MainActivity extends Activity {
             chosen[i] = networkBoxes[i].isChecked();
             any = any || chosen[i];
         }
-        String typed = senders.getText().toString().trim();
+        // A typed name a listed network already covers ticks that network rather than
+        // being dropped, which looked like the app refusing it.
+        StringBuilder absorbed = new StringBuilder();
+        StringBuilder kept = new StringBuilder();
+        for (String entry : senders.getText().toString().split(",")) {
+            String name = entry.trim();
+            if (name.isEmpty()) continue;
+            int network = Senders.networkFor(name);
+            if (network >= 0) {
+                if (!chosen[network]) {
+                    chosen[network] = true;
+                    networkBoxes[network].setChecked(true);
+                }
+                any = true;
+                if (absorbed.length() > 0) absorbed.append(", ");
+                absorbed.append(name).append(" \u2192 ").append(Senders.NETWORKS[network][0]);
+            } else {
+                if (kept.length() > 0) kept.append(", ");
+                kept.append(name);
+            }
+        }
+        String typed = kept.toString();
+        senders.setText(typed);
+        final String folded = absorbed.toString();
         if (!any && typed.isEmpty()) {
             senders.setError(getString(R.string.sender_empty)); senders.requestFocus(); return;
         }
@@ -223,14 +246,17 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 String pairProblem = "";
+                String pairedAs = "";
                 if (pairing) {
                     Enrol.Result paired = Enrol.pair(app, k, senderList, android.os.Build.MODEL);
                     if (paired.ok()) {
                         Prefs.save(app, u, paired.deviceKey, senderList);
+                        pairedAs = paired.label;
                     } else {
                         pairProblem = paired.problem;
                     }
                 }
+                final String label = pairedAs;
                 final String problem = pairProblem.isEmpty() ? Uploader.ping(app) : pairProblem;
                 final boolean pairedOk = pairing && pairProblem.isEmpty();
                 if (problem.isEmpty()) {
@@ -242,6 +268,7 @@ public class MainActivity extends Activity {
                     public void run() {
                         if (isFinishing() || isDestroyed()) return;
                         testing = false;
+                        long took = android.os.SystemClock.elapsedRealtime() - started;
                         if (pairedOk) {
                             // The account key has done its job. Take it off the screen and
                             // show the key this phone was given in its place.
@@ -250,7 +277,17 @@ public class MainActivity extends Activity {
                         }
                         dashboard.connectionFeedback(!problem.isEmpty() ? problem
                             : pairedOk ? getString(R.string.paired)
-                            : "Connected successfully · " + (android.os.SystemClock.elapsedRealtime() - started) + " ms. Your device key was accepted.");
+                            : "Connected successfully · " + took + " ms. Your device key was accepted.");
+                        if (!problem.isEmpty()) {
+                            Popup.bad(MainActivity.this, getString(pairing ? R.string.pair_failed_title : R.string.not_connected_title), problem);
+                        } else if (pairedOk) {
+                            Popup.good(MainActivity.this, getString(R.string.paired_title), getString(R.string.paired_body),
+                                    label.isEmpty() ? "" : getString(R.string.paired_detail, label));
+                        } else {
+                            Popup.good(MainActivity.this, getString(R.string.connected_title), getString(R.string.connected_body),
+                                    folded.isEmpty() ? getString(R.string.connected_detail, (int) took)
+                                            : getString(R.string.sender_folded, folded));
+                        }
                         save.setEnabled(true);
                         save.setText(R.string.btn_save);
                         ListenerService.ensureRunning(app);

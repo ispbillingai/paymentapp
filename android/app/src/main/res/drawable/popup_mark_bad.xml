@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The ring behind the mark when something did not work. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FBE6DF" />
+    <stroke android:width="3dp" android:color="#B4482F" />
+</shape>

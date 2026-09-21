@@ -95,6 +95,22 @@ final class Senders {
         return out.toString();
     }
 
+    /**
+     * Which listed network claims this sender name, or -1 for none. A name the
+     * owner types that a network already covers ticks that network instead of
+     * being thrown away.
+     */
+    static int networkFor(String name) {
+        for (int i = 0; i < NETWORKS.length; i++) {
+            for (String known : namesFor(i)) {
+                if (normalise(known).equals(normalise(name))) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
     private static boolean knownToAnyNetwork(String name) {
         for (int i = 0; i < NETWORKS.length; i++) {
             for (String known : namesFor(i)) {
