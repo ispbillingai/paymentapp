@@ -176,10 +176,11 @@
   function localiseCopy(country, known, detected) {
     const put = (id, text) => { const node = document.getElementById(id); if (node) node.textContent = text; };
     if (!known || !country) {
-      // Where someone is reading from is worth saying even where the product is
-      // not offered, which is the whole of the greeting: it says where they are,
-      // never that we serve it. The examples below stay international.
-      put('hero-country', known && detected ? ' · VISITING FROM ' + nameOf(detected).toUpperCase() : '');
+      // Every country is named the same way, offered or not: the heading says
+      // where the visitor is, and singling some out read worse than saying it
+      // plainly. What is not offered is still not offered below, where it
+      // matters: no example, no option, no entry in the coverage list.
+      put('hero-country', known && detected ? ' IN ' + nameOf(detected).toUpperCase() : '');
       put('hero-lead', copy['hero-lead']);
       put('coverage-lead', copy['coverage-lead']);
       return;

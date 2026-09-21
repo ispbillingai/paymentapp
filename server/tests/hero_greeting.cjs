@@ -88,13 +88,13 @@ const settle = () => new Promise(resolve => setImmediate(() => setImmediate(reso
     });
   }
 
-  // A country it is not offered in is still greeted: it says where they are,
-  // and claims nothing about serving them.
+  // A country it is not offered in is named the same way as any other. What is
+  // not offered stays out of the examples and the lists, not out of the heading.
   {
     const nodes = visitFrom('KE');
     await settle();
-    test('Kenya is greeted by name', () => {
-      assert.equal(nodes['hero-country'].textContent, ' · VISITING FROM KENYA');
+    test('Kenya is named like everywhere else', () => {
+      assert.equal(nodes['hero-country'].textContent, ' IN KENYA');
     });
     test('but Kenya is never offered', () => {
       assert.equal(nodes['hero-lead'].textContent.includes('Kenya'), false);
