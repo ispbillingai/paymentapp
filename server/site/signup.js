@@ -80,13 +80,16 @@
       });
       var body = await response.json().catch(function () { return {}; });
       if (!response.ok) throw { code: body.error && body.error.code, message: body.error && body.error.message };
-      // Signed in already: straight to the dashboard.
+      if (body.verification_required) {
+        form.innerHTML = '<div class="signup-step"><p class="eyebrow">ONE MORE STEP</p><h2>Check your email.</h2><p>We sent a verification link to your work address. Open it to activate your account, then sign in. The link expires in 24 hours.</p><div class="form-actions"><a class="button button-dark" href="/login">Go to sign in →</a></div></div>';
+        return;
+      }
       location.assign(body.next || '/dashboard');
     } catch (problem) {
       errorBox.textContent = messages[problem.code] || problem.message || 'Your account could not be created. Check your details and try again.';
       errorBox.hidden = false; errorBox.focus();
       submit.disabled = false;
-      submit.innerHTML = 'Create account and open dashboard <span aria-hidden="true">→</span>';
+      submit.innerHTML = 'Create account <span aria-hidden="true">→</span>';
     }
   });
 })();

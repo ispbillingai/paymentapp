@@ -16,6 +16,7 @@ ini_set('log_errors', '1');
 require dirname(__DIR__) . '/src/Db.php';
 require dirname(__DIR__) . '/src/Parser.php';
 require dirname(__DIR__) . '/src/Gateway.php';
+require dirname(__DIR__) . '/src/EmailVerification.php';
 
 date_default_timezone_set('UTC');
 header('Content-Type: application/json; charset=utf-8');
@@ -181,7 +182,11 @@ try {
         $recent = Db::row("SELECT COUNT(*) c FROM signups WHERE ip=? AND created_at>?", [client_ip(), date('Y-m-d H:i:s', time()-900)]);
         if ((int) $recent['c'] >= 20) fail('too_many_attempts', 'Too many attempts. Try again later.', 429);
         Db::run("INSERT INTO signups (ip, created_at) VALUES (?,?)", [client_ip(), date('Y-m-d H:i:s')]);
-        $user = Db::row("SELECT * FROM portal_users WHERE email=? AND status='active'", [$email]);
+        $user = Db::row("SELECT * FROM portal_users WHERE email=?", [$email]);
+        if ($user && $user['status'] === 'pending' && password_verify((string) ($in['password'] ?? ''), $user['password_hash'])) {
+            fail('email_unverified', 'Verify your email before signing in. Check your inbox or request a new link.', 403);
+        }
+        if ($user && $user['status'] !== 'active') $user = null;
         if (!$user || !password_verify((string) ($in['password'] ?? ''), $user['password_hash'])) { usleep(250000); fail('invalid_login', 'The email or password is incorrect.', 401); }
         if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) Db::run("UPDATE portal_users SET password_hash=? WHERE id=?", [password_hash($in['password'], PASSWORD_DEFAULT), $user['id']]);
         $sessionId = portalSignIn((int) $user['id']);
@@ -201,6 +206,7 @@ try {
      * still challenge-verified, at the point they actually add it.
      */
     if ($path === '/v1/portal/signup' && $method === 'POST') {
+        if (EmailVerification::enabled() && !EmailVerification::ready()) fail('email_unavailable', 'Account verification is temporarily unavailable. Please try again later.', 503);
         $in = body(); requireTextFields($in, ['name', 'email', 'phone', 'password', 'country', 'dial_code', 'currency']);
         $name = trim((string) ($in['name'] ?? ''));
         $email = strtolower(trim((string) ($in['email'] ?? '')));
@@ -217,21 +223,54 @@ try {
         if ((int) $recent['c'] >= 10) fail('too_many_attempts', 'Too many attempts. Please try again later.', 429);
         Db::run("INSERT INTO signups (ip, created_at) VALUES (?, ?)", [$ip, date('Y-m-d H:i:s')]);
         if (Db::row("SELECT id FROM portal_users WHERE email = ?", [$email])) fail('email_exists', 'That email already has an account. Sign in instead.', 409);
+        $verify = EmailVerification::enabled();
+        $token = $verify ? EmailVerification::token() : '';
         $pdo = Db::pdo();
         $pdo->beginTransaction();
         try {
             $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), '', false);
-            Db::run("INSERT INTO portal_users (merchant_id, email, phone, password_hash, role, status, created_at) VALUES (?,?,?,?, 'merchant', 'active', ?)",
-                [(int) $made['merchant']['id'], $email, substr($phone, 0, 20), password_hash($password, PASSWORD_DEFAULT), date('Y-m-d H:i:s')]);
+            Db::run("INSERT INTO portal_users (merchant_id, email, phone, password_hash, role, status, created_at) VALUES (?,?,?,?, 'merchant', ?, ?)",
+                [(int) $made['merchant']['id'], $email, substr($phone, 0, 20), password_hash($password, PASSWORD_DEFAULT), $verify ? 'pending' : 'active', date('Y-m-d H:i:s')]);
             $userId = (int) Db::lastId();
+            if ($verify) EmailVerification::saveToken($userId, $token);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) fail('email_exists', 'That email already has an account. Sign in instead.', 409);
             throw $e;
         }
+        if ($verify) {
+            if (!EmailVerification::send($email, $name, $token)) {
+                fail('email_delivery_failed', 'Your account is waiting for email verification, but the message could not be sent. Request a new link from the sign-in page.', 503);
+            }
+            out(['ok' => true, 'verification_required' => true], 202);
+        }
         portalSignIn($userId);
         out(['ok' => true, 'next' => '/dashboard'], 201);
+    }
+    if ($path === '/v1/portal/verify-email' && $method === 'POST') {
+        $in = body(); requireTextFields($in, ['token']);
+        if (!EmailVerification::verify((string) ($in['token'] ?? ''))) fail('invalid_verification', 'This verification link is invalid or expired. Request another one.', 400);
+        out(['ok' => true, 'next' => '/login']);
+    }
+    if ($path === '/v1/portal/resend-verification' && $method === 'POST') {
+        $in = body(); requireTextFields($in, ['email']);
+        $email = strtolower(trim((string) ($in['email'] ?? '')));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail('bad_email', 'Enter a valid email address.');
+        if (!EmailVerification::ready()) fail('email_unavailable', 'Verification email is temporarily unavailable. Please try again later.', 503);
+        $ip = client_ip();
+        $recent = Db::row('SELECT COUNT(*) c FROM signups WHERE ip=? AND created_at>?', [$ip, date('Y-m-d H:i:s', time() - 3600)]);
+        if ((int) $recent['c'] >= 10) fail('too_many_attempts', 'Too many attempts. Please try again later.', 429);
+        Db::run('INSERT INTO signups (ip,created_at) VALUES (?,?)', [$ip, date('Y-m-d H:i:s')]);
+        $user = Db::row("SELECT u.id,u.email,m.name,v.sent_at FROM portal_users u JOIN merchants m ON m.id=u.merchant_id
+            LEFT JOIN portal_email_verifications v ON v.user_id=u.id WHERE u.email=? AND u.status='pending'", [$email]);
+        if ($user && (!$user['sent_at'] || strtotime($user['sent_at']) < time() - 120)) {
+            $token = EmailVerification::token();
+            EmailVerification::saveToken((int) $user['id'], $token);
+            EmailVerification::send($email, (string) $user['name'], $token);
+        }
+        // The response does not reveal which addresses have accounts.
+        out(['ok' => true, 'message' => 'If this address is waiting for verification, a new link has been sent.']);
     }
     if ($path === '/v1/portal/logout' && $method === 'POST') {
         $token=$_COOKIE['isp_pay_session']??''; if ($token) Db::run("DELETE FROM portal_sessions WHERE token_hash=?",[hash('sha256',$token)]); portalCookie('',time()-3600); out(['ok'=>true]);
@@ -777,6 +816,9 @@ try {
 
     // ------------------------------------------------------------ joining
     if ($path === '/v1/merchants/register' && $method === 'POST') {
+        if (EmailVerification::enabled() && !portalSession() && bearerKey() === '') {
+            fail('verification_required', 'Create and verify an account before registering a new live merchant.', 403);
+        }
         $in = body();
         requireTextFields($in, ['name', 'email', 'phone', 'password', 'channel', 'webhook_url', 'dial_code', 'country', 'currency', 'nonce']);
         $url = trim((string) ($in['webhook_url'] ?? ''));

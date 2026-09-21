@@ -13,4 +13,8 @@ return [
 
     // Local testing only. Allows http and private addresses as webhook targets.
     'allow_insecure_webhooks' => false,
+    // Enable only after running bin/migrate-email-verification.php on an existing
+    // database, verifying the sender domain in Brevo, and setting the API key.
+    'email_verification_enabled' => false,
+    'brevo_api_key' => '',
 ];

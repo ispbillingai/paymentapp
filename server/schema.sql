@@ -229,6 +229,15 @@ CREATE TABLE IF NOT EXISTS portal_users (
     KEY idx_portal_merchant (merchant_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS portal_email_verifications (
+    user_id INT NOT NULL PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    sent_at DATETIME NOT NULL,
+    UNIQUE KEY uq_email_token (token_hash),
+    KEY idx_email_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS portal_sessions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
