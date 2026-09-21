@@ -707,11 +707,11 @@ class Gateway
             self::hold($pay['id'], self::knownReferences($pay['merchant_id'], $pay['payer_key']) ? 'known_payer_no_intent' : 'no_waiting_intent');
             return false;
         }
-        // A newer browser request is not evidence that it owns this payment.
-        if (count(array_unique(array_column($intents, 'reference'))) > 1) {
-            self::hold($pay['id'], 'ambiguous_intents');
-            return false;
-        }
+        // Several purchases waiting on one number for one amount are all that
+        // person's own: they asked twice and paid once. The most recent is what
+        // they last chose, so it is the one credited, and the older ones are
+        // left to expire. Holding the payment instead helped nobody — it was
+        // the payer's money sitting still while they waited to be connected.
         return self::link($pay, $intents[0], 'number');
     }
 
@@ -735,11 +735,16 @@ class Gateway
             }
             $nameCheck = Parser::nameMatches($intent['payer_name'], $pay['payer_name']);
             if ($rule === 'number') {
-                $candidates = Db::rows("SELECT reference FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? FOR UPDATE", [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount']]);
-                if (count(array_unique(array_column($candidates, 'reference'))) > 1) {
-                    self::hold($pay['id'], 'ambiguous_intents');
-                    $pdo->commit();
-                    return false;
+                // Locked here so a purchase made between the choice above and
+                // this transaction still counts: if a newer one has appeared,
+                // it is the one the payer last chose, and it wins.
+                $candidates = Db::rows("SELECT id FROM intents WHERE merchant_id = ? AND payer_key = ? AND status = 'waiting' AND expires_at > ? AND amount = ? ORDER BY id DESC FOR UPDATE", [(int) $pay['merchant_id'], $pay['payer_key'], self::now(), $pay['amount']]);
+                if ($candidates && (int) $candidates[0]['id'] !== (int) $intent['id']) {
+                    $newest = Db::row("SELECT * FROM intents WHERE id = ? FOR UPDATE", [(int) $candidates[0]['id']]);
+                    if ($newest && $newest['status'] === 'waiting' && (int) $newest['payment_id'] === 0) {
+                        $intent = $newest;
+                        $nameCheck = Parser::nameMatches($intent['payer_name'], $pay['payer_name']);
+                    }
                 }
             }
             $others = Db::row("SELECT COUNT(*) c FROM payers WHERE merchant_id = ? AND payer_key = ? AND reference <> ?", [(int) $pay['merchant_id'], $pay['payer_key'], $intent['reference']]);

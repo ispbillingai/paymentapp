@@ -110,9 +110,16 @@ resetData(); intent(1); payment(1, '772123456', 'GHS');
 check(Gateway::matchPayment(1), 'A receipt in another currency still matches on amount and number.');
 check(Db::row('SELECT currency FROM payments WHERE id = 1')['currency'] === 'GHS', 'The currency that arrived is kept as it was read.');
 check(Db::row('SELECT currency FROM intents WHERE id = 1')['currency'] === 'UGX', 'The intent keeps the currency it was priced in.');
+// Several purchases waiting on one number for one amount are all that person's
+// own: they asked twice and paid once. The most recent is what they last chose.
+// This used to be held for review as 'ambiguous_intents', which left the payer's
+// money sitting still while they waited to be connected; the owner decided the
+// newest should win.
 resetData(); intent(1); intent(2, '772123456', 'customer-b'); payment(1);
-check(!Gateway::matchPayment(1), 'Newest competing reference must not win automatically.');
-check(Db::row('SELECT hold_reason FROM payments WHERE id = 1')['hold_reason'] === 'ambiguous_intents', 'Ambiguity must be reviewable.');
+check(Gateway::matchPayment(1), 'One payer with two waiting purchases is still matched.');
+check(Db::row('SELECT intent_id FROM payments WHERE id = 1')['intent_id'] == 2, 'The most recent purchase is the one credited.');
+check(Db::row('SELECT status FROM intents WHERE id = 2')['status'] === 'paid', 'And it is the one marked paid.');
+check(Db::row('SELECT status FROM intents WHERE id = 1')['status'] === 'waiting', 'The older one is left alone to expire.');
 resetData(); intent(1); payment(1); payment(2);
 check(Gateway::matchPayment(1), 'Valid receipt should match.');
 check(!Gateway::matchPayment(2), 'Second receipt must not replace a paid intent.');
