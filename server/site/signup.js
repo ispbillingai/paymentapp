@@ -40,6 +40,7 @@
     document.querySelector('.signup-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function validateStepOne() {
+    document.getElementById('merchant-password-confirm').setCustomValidity('');
     var controls = document.querySelectorAll('[data-step="1"] input,[data-step="1"] select');
     for (var i = 0; i < controls.length; i++) if (!controls[i].reportValidity()) return false;
     var password = document.getElementById('merchant-password');
@@ -65,7 +66,7 @@
     try {
       var response = await fetch('/v1/merchants/register', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(payload), credentials: 'same-origin' });
       var body = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw { code: body.error || body.code, message: body.message };
+      if (!response.ok) throw { code: body.error?.code, message: body.error?.message };
       credentials = { merchant_id: body.merchant_id, api_key: body.api_key, webhook_secret: body.webhook_secret, webhook_url: payload.webhook_url, created_at: new Date().toISOString() };
       document.getElementById('result-merchant').textContent = credentials.merchant_id;
       document.getElementById('result-api-key').textContent = credentials.api_key;

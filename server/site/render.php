@@ -18,6 +18,8 @@ function renderPublicSite(string $path, string $method): void
         '/assets/site.css' => ['_style.css', 'text/css; charset=utf-8'],
         '/assets/site.js' => ['site.js', 'text/javascript; charset=utf-8'],
         '/assets/localization.js' => ['localization.js', 'text/javascript; charset=utf-8'],
+        '/assets/operations.js' => ['operations.js', 'text/javascript; charset=utf-8'],
+        '/assets/sandbox.js' => ['sandbox.js', 'text/javascript; charset=utf-8'],
         '/assets/signup.js' => ['signup.js', 'text/javascript; charset=utf-8'],
         '/assets/portal.js' => ['portal.js', 'text/javascript; charset=utf-8'],
         '/assets/dashboard.js' => ['dashboard.js', 'text/javascript; charset=utf-8'],
@@ -44,6 +46,7 @@ function renderPublicSite(string $path, string $method): void
     }
     $pages = [
         '/' => ['home', 'Direct payments. Connected customers.', 'Connect direct mobile money payments to your ISP billing system with a dedicated Android listener, payment matching and signed webhooks.'],
+        '/sandbox' => ['sandbox', 'Developer sandbox', 'Create a developer account and test payments with isolated test keys.'],
         '/signup' => ['signup', 'Create a merchant account', 'Register your ISP Billing Pay merchant account, choose a payment channel, verify your webhook and receive secure API credentials.'],
         '/login' => ['login', 'Merchant sign in', 'Sign in to your ISP Billing Pay merchant workspace.'],
         '/dashboard' => ['dashboard', 'Merchant workspace', 'Review gateway payments, channels, devices and integration health.'],
@@ -55,6 +58,7 @@ function renderPublicSite(string $path, string $method): void
         '/privacy' => ['privacy', 'Data and privacy', 'Understand how the gateway processes payment receipt data, device details and integration records.'],
         '/terms' => ['terms', 'Service boundaries', 'Understand the responsibilities of the gateway, billing platform, receiving account and mobile money provider.'],
     ];
+    $pages = array_merge($pages, require $site . '/resource-routes.php');
     if ($path === '/robots.txt') {
         header('Content-Type: text/plain; charset=utf-8');
         if ($method !== 'HEAD') echo "User-agent: *\nAllow: /\nDisallow: /v1/\nSitemap: https://ispbillingpay.com/sitemap.xml\n";
@@ -64,7 +68,7 @@ function renderPublicSite(string $path, string $method): void
         header('Content-Type: application/xml; charset=utf-8');
         if ($method !== 'HEAD') {
             echo '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
-            foreach (array_keys($pages) as $url) echo '<url><loc>https://ispbillingpay.com' . $url . '</loc></url>';
+            foreach (array_diff(array_keys($pages), ['/dashboard','/login','/sandbox']) as $url) echo '<url><loc>https://ispbillingpay.com' . $url . '</loc></url>';
             echo '</urlset>';
         }
         return;
@@ -76,6 +80,7 @@ function renderPublicSite(string $path, string $method): void
         header('Cache-Control: no-store');
         header('X-Robots-Tag: noindex');
     }
+    if (in_array($name, ['dashboard','login','sandbox'], true)) { header('Cache-Control: no-store'); header('X-Robots-Tag: noindex'); }
     header('Content-Type: text/html; charset=utf-8');
     if ($method === 'HEAD') return;
     $escape = static fn($value) => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
