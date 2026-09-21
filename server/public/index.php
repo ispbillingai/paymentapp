@@ -112,6 +112,32 @@ function portalCookie($token, $expires)
     setcookie('isp_pay_in', $token === '' ? '' : '1', ['expires' => $expires, 'path' => '/', 'secure' => $secure, 'httponly' => false, 'samesite' => 'Lax']);
 }
 
+/** Starts a browser session for this person: the row, the cookies, the last sign-in time. */
+function portalSignIn($userId)
+{
+    $token = bin2hex(random_bytes(32));
+    $expires = time() + 28800;
+    $now = date('Y-m-d H:i:s');
+    Db::run("DELETE FROM portal_sessions WHERE expires_at < ?", [$now]);
+    Db::run("INSERT INTO portal_sessions (user_id,token_hash,expires_at,created_at,last_seen_at) VALUES (?,?,?,?,?)", [(int) $userId, hash('sha256', $token), date('Y-m-d H:i:s', $expires), $now, $now]);
+    $sessionId = (int) Db::lastId();
+    Db::run("UPDATE portal_users SET last_login_at=? WHERE id=?", [$now, (int) $userId]);
+    portalCookie($token, $expires);
+    return $sessionId;
+}
+
+/**
+ * Remembers which workspace an owner was last in, so signing in again returns them
+ * to it instead of making them switch every time. It is only a preference: it is
+ * honoured for an owner alone, who may view any merchant anyway, and only if that
+ * merchant still exists.
+ */
+function rememberView($publicId)
+{
+    $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    setcookie('isp_pay_view', (string) $publicId, ['expires' => $publicId === '' ? time() - 3600 : time() + 31536000, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
+}
+
 /** A result from Gateway is either data or ['error' => [...]]. */
 function reply(array $res, $okCode = 200)
 {
@@ -153,10 +179,54 @@ try {
         $user = Db::row("SELECT * FROM portal_users WHERE email=? AND status='active'", [$email]);
         if (!$user || !password_verify((string) ($in['password'] ?? ''), $user['password_hash'])) { usleep(250000); fail('invalid_login', 'The email or password is incorrect.', 401); }
         if (password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT)) Db::run("UPDATE portal_users SET password_hash=? WHERE id=?", [password_hash($in['password'], PASSWORD_DEFAULT), $user['id']]);
-        $token = bin2hex(random_bytes(32)); $expires = time()+28800;
-        Db::run("DELETE FROM portal_sessions WHERE expires_at < ?", [date('Y-m-d H:i:s')]);
-        Db::run("INSERT INTO portal_sessions (user_id,token_hash,expires_at,created_at,last_seen_at) VALUES (?,?,?,?,?)", [(int)$user['id'],hash('sha256',$token),date('Y-m-d H:i:s',$expires),date('Y-m-d H:i:s'),date('Y-m-d H:i:s')]);
-        Db::run("UPDATE portal_users SET last_login_at=? WHERE id=?", [date('Y-m-d H:i:s'),(int)$user['id']]); portalCookie($token,$expires); out(['ok'=>true,'next'=>$user['role']==='developer'?'/sandbox':'/dashboard']);
+        $sessionId = portalSignIn((int) $user['id']);
+        $wanted = (string) ($_COOKIE['isp_pay_view'] ?? '');
+        if ($user['role'] === 'owner' && preg_match('/^mer_[a-f0-9]{8,40}$/', $wanted)) {
+            $last = Db::row("SELECT id FROM merchants WHERE public_id = ?", [$wanted]);
+            if ($last) Db::run("UPDATE portal_sessions SET acting_merchant_id = ? WHERE id = ?", [(int) $last['id'], $sessionId]);
+        }
+        out(['ok'=>true,'next'=>$user['role']==='developer'?'/sandbox':'/dashboard']);
+    }
+
+    /**
+     * An ISP creating their account. It asks only for who they are, and they arrive
+     * signed in on their dashboard, where they make their key, pair their phone and
+     * set their webhook. The webhook used to be demanded here, before an account
+     * existed, which nobody without a finished integration could get past; it is
+     * still challenge-verified, at the point they actually add it.
+     */
+    if ($path === '/v1/portal/signup' && $method === 'POST') {
+        $in = body(); requireTextFields($in, ['name', 'email', 'phone', 'password', 'country', 'dial_code', 'currency']);
+        $name = trim((string) ($in['name'] ?? ''));
+        $email = strtolower(trim((string) ($in['email'] ?? '')));
+        $phone = preg_replace('/[^0-9+]/', '', (string) ($in['phone'] ?? ''));
+        $password = (string) ($in['password'] ?? '');
+        $dial = preg_replace('/[^0-9]+/', '', (string) ($in['dial_code'] ?? ''));
+        if ($name === '' || $dial === '') fail('bad_request', 'Your business name and country calling code are required.');
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 190) fail('bad_email', 'Enter a valid email address.');
+        if (strlen($password) < 12 || strlen($password) > 72) fail('weak_password', 'Use a password between 12 and 72 bytes.');
+        if (!preg_match('/^[A-Za-z]{3}$/', (string) ($in['currency'] ?? ''))) fail('bad_currency', 'currency must be a three-letter currency code.');
+        if (in_array($dial, (array) Config::get('blocked_dial_codes', []), true)) fail('country_not_supported', 'Direct Number is not offered in this country.', 403);
+        $ip = client_ip();
+        $recent = Db::row("SELECT COUNT(*) c FROM signups WHERE ip = ? AND created_at > ?", [$ip, date('Y-m-d H:i:s', time() - 3600)]);
+        if ((int) $recent['c'] >= 10) fail('too_many_attempts', 'Too many attempts. Please try again later.', 429);
+        Db::run("INSERT INTO signups (ip, created_at) VALUES (?, ?)", [$ip, date('Y-m-d H:i:s')]);
+        if (Db::row("SELECT id FROM portal_users WHERE email = ?", [$email])) fail('email_exists', 'That email already has an account. Sign in instead.', 409);
+        $pdo = Db::pdo();
+        $pdo->beginTransaction();
+        try {
+            $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), '', false);
+            Db::run("INSERT INTO portal_users (merchant_id, email, phone, password_hash, role, status, created_at) VALUES (?,?,?,?, 'merchant', 'active', ?)",
+                [(int) $made['merchant']['id'], $email, substr($phone, 0, 20), password_hash($password, PASSWORD_DEFAULT), date('Y-m-d H:i:s')]);
+            $userId = (int) Db::lastId();
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062) fail('email_exists', 'That email already has an account. Sign in instead.', 409);
+            throw $e;
+        }
+        portalSignIn($userId);
+        out(['ok' => true, 'next' => '/dashboard'], 201);
     }
     if ($path === '/v1/portal/logout' && $method === 'POST') {
         $token=$_COOKIE['isp_pay_session']??''; if ($token) Db::run("DELETE FROM portal_sessions WHERE token_hash=?",[hash('sha256',$token)]); portalCookie('',time()-3600); out(['ok'=>true]);
@@ -172,7 +242,8 @@ try {
         $shownId=$user['role']==='owner'?$user['acting_merchant_id']:$user['merchant_id'];
         $merchant=$shownId?Db::row("SELECT public_id,name,country,currency,webhook_url FROM merchants WHERE id=?",[(int)$shownId]):null;
         out(['totals'=>$totals,'user'=>['email'=>$user['email'],'role'=>$user['role']],
-             'acting_as'=>$user['role']==='owner'&&$merchant?['id'=>$merchant['public_id'],'name'=>$merchant['name'],'own'=>(int)$shownId===(int)$user['merchant_id']]:null, 'merchant'=>$merchant, 'metrics'=>['total'=>$summary['total'],'matched'=>(int)$summary['matched'],'unmatched'=>(int)$summary['unmatched'],'currency'=>$summary['currency']?:($merchant['currency']??'USD'),'devices'=>(int)$devices['total'],'online'=>(int)$devices['online']], 'payments'=>$payments]);
+             'acting_as'=>$user['role']==='owner'&&$merchant?['id'=>$merchant['public_id'],'name'=>$merchant['name'],'own'=>(int)$shownId===(int)$user['merchant_id']]:null, 'merchant'=>$merchant, 'metrics'=>['total'=>$summary['total'],'matched'=>(int)$summary['matched'],'unmatched'=>(int)$summary['unmatched'],'currency'=>$summary['currency']?:($merchant['currency']??'USD'),'devices'=>(int)$devices['total'],'online'=>(int)$devices['online'],
+             'keys'=>(int)Db::row("SELECT COUNT(*) c FROM api_keys WHERE $where AND status='active'")['c']], 'payments'=>$payments]);
     }
 
     if ($path === '/v1/portal/operations' && $method === 'GET') {
@@ -326,11 +397,13 @@ try {
         $wanted = trim((string) ($in['merchant_id'] ?? ''));
         if ($wanted === '') {
             Db::run("UPDATE portal_sessions SET acting_merchant_id = NULL WHERE id = ?", [(int) $user['session_id']]);
+            rememberView('');
             out(['ok' => true, 'acting' => null]);
         }
         $merchant = Db::row("SELECT id, public_id, name FROM merchants WHERE public_id = ?", [$wanted]);
         if (!$merchant) fail('not_found', 'That merchant was not found.', 404);
         Db::run("UPDATE portal_sessions SET acting_merchant_id = ? WHERE id = ?", [(int) $merchant['id'], (int) $user['session_id']]);
+        rememberView($merchant['public_id']);
         out(['ok' => true, 'acting' => ['id' => $merchant['public_id'], 'name' => $merchant['name']]]);
     }
 
@@ -404,8 +477,9 @@ try {
         $user = portalSession(); if (!$user) fail('unauthorized', 'Sign in to continue.', 401);
         if ($user['role'] !== 'owner') fail('forbidden', 'This is for a platform owner adding a merchant account of their own.', 403);
         if ($user['merchant_id']) fail('already_set_up', 'This sign-in already has a merchant account of its own.', 409);
-        $in = body(); requireTextFields($in, ['name', 'country', 'dial_code', 'currency', 'password']);
-        $confirmPassword($user, $in);
+        // No password is asked for here: nothing secret is issued or shown. The first
+        // key is made afterwards in the workspace, and that is where it is asked for.
+        $in = body(); requireTextFields($in, ['name', 'country', 'dial_code', 'currency']);
         $name = trim((string) ($in['name'] ?? ''));
         $dial = preg_replace('/\D+/', '', (string) ($in['dial_code'] ?? ''));
         if ($name === '' || $dial === '') fail('bad_request', 'A business name and dialling code are required.');
@@ -414,7 +488,7 @@ try {
         $pdo = Db::pdo();
         $pdo->beginTransaction();
         try {
-            $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), '');
+            $made = Gateway::createMerchant($name, (string) ($in['country'] ?? ''), $dial, (string) ($in['currency'] ?? ''), '', false);
             $linked = Db::run("UPDATE portal_users SET merchant_id = ? WHERE id = ? AND merchant_id IS NULL", [(int) $made['merchant']['id'], (int) $user['id']]);
             if ($linked !== 1) { $pdo->rollBack(); fail('account_changed', 'This sign-in changed while the account was being created. Refresh and try again.', 409); }
             Db::run("UPDATE portal_sessions SET acting_merchant_id = ? WHERE id = ?", [(int) $made['merchant']['id'], (int) $user['session_id']]);
@@ -423,7 +497,8 @@ try {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
-        out(['merchant_id' => $made['merchant']['public_id'], 'name' => $made['merchant']['name'], 'api_key' => $made['api_key'], 'webhook_secret' => $made['webhook_secret']], 201);
+        rememberView($made['merchant']['public_id']);
+        out(['ok' => true, 'merchant_id' => $made['merchant']['public_id'], 'name' => $made['merchant']['name'], 'next' => '/dashboard'], 201);
     }
 
     if ($path === '/v1/portal/keys' && $method === 'POST') {

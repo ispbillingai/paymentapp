@@ -241,3 +241,11 @@
 .credential-reveal .detail-list{padding:0;margin:12px 0 14px}
 .credential-reveal .button-row .button{min-height:34px;padding:6px 14px;font-size:12px}
 .scope-picker[hidden]{display:none}
+button.scope-add{width:100%;background:transparent;border:0;border-top:1px solid var(--line);text-align:left;cursor:pointer;font-family:inherit}
+button.scope-add.first{border-top:0}
+.nav-out{margin-left:auto;font-size:11px;opacity:.55}
+.portal-dialog.my-merchant .portal-dialog-box{width:min(480px,100%);max-height:calc(100vh - 40px);overflow-y:auto}
+.portal-dialog .field{margin-top:16px}
+.portal-dialog .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#my-merchant .panel-heading{gap:20px;flex-wrap:wrap}
+#my-merchant .panel-heading .button{flex:0 0 auto}

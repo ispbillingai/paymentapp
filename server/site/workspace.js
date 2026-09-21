@@ -312,10 +312,11 @@
     if (own) {
       menu.append(entry(own.name, 'Your own payments, keys and webhook', own.id, isCurrent(own.id)));
     } else {
-      const setUp = document.createElement('a');
+      const setUp = document.createElement('button');
+      setUp.type = 'button';
       setUp.className = 'scope-add first';
-      setUp.href = '/dashboard/account#my-merchant';
-      setUp.textContent = 'Use this sign-in as a merchant too →';
+      setUp.textContent = 'Open my merchant dashboard →';
+      setUp.onclick = () => { close(); openMyMerchant(); };
       menu.append(setUp);
     }
 
@@ -379,6 +380,87 @@
     const header = main && main.querySelector('.portal-top');
     if (header) header.insertAdjacentElement('afterend', banner);
     else if (main) main.prepend(banner);
+  }
+
+  /**
+   * An owner opening a merchant account of their own, on the same sign-in. It asks
+   * for the business and its country, and they are on that account's dashboard. It
+   * opens in place, from wherever they are: being sent to a settings page to find a
+   * form is not what anyone expects on the way into their dashboard.
+   */
+  function openMyMerchant() {
+    const existing = document.querySelector('.portal-dialog.my-merchant');
+    if (existing) existing.remove();
+    const dialogBox = document.createElement('div');
+    dialogBox.className = 'portal-dialog my-merchant';
+    dialogBox.innerHTML = '<form class="portal-dialog-box" role="dialog" aria-modal="true" aria-labelledby="mine-title" novalidate>'
+      + '<h2 id="mine-title">Open your merchant account</h2>'
+      + '<p class="dialog-detail">Same email and password. You get your own dashboard, keys, listener phones, webhook and payments, and you switch back to the owner view from the top of the sidebar.</p>'
+      + '<div class="field"><label for="mine-name">Business or ISP name</label><input id="mine-name" type="text" maxlength="120" autocomplete="organization" required></div>'
+      + '<div class="field"><label for="mine-country">Country</label><select id="mine-country" required><option value="">Choose your country</option></select></div>'
+      + '<div class="field" id="mine-other-field" hidden><label for="mine-other">Country name</label><input id="mine-other" type="text" maxlength="40"></div>'
+      + '<div class="field-row"><div class="field"><label for="mine-dial">Calling code</label><input id="mine-dial" type="text" inputmode="numeric" maxlength="8" placeholder="233" required></div>'
+      + '<div class="field"><label for="mine-currency">Currency</label><input id="mine-currency" type="text" maxlength="3" placeholder="GHS" required></div></div>'
+      + '<p class="form-error" role="alert" hidden></p>'
+      + '<div class="form-actions"><button type="button" class="button button-outline button-small dialog-cancel">Cancel</button>'
+      + '<button type="submit" class="button button-dark button-small">Open my dashboard</button></div></form>';
+    document.body.append(dialogBox);
+    document.body.classList.remove('nav-open');
+    const scrim = el('portal-scrim');
+    if (scrim) scrim.hidden = true;
+
+    const find = selector => dialogBox.querySelector(selector);
+    const country = find('#mine-country');
+    (window.ISPPayCountries || []).forEach(item => {
+      const option = document.createElement('option');
+      option.value = item[1].toLowerCase();
+      option.textContent = item[1];
+      option.dataset.dial = item[2];
+      option.dataset.currency = item[3];
+      country.append(option);
+    });
+    const elsewhere = document.createElement('option');
+    elsewhere.value = 'other';
+    elsewhere.textContent = 'Another country';
+    country.append(elsewhere);
+    country.onchange = () => {
+      const typed = country.value === 'other';
+      find('#mine-other-field').hidden = !typed;
+      const chosen = country.options[country.selectedIndex];
+      find('#mine-dial').value = typed ? '' : (chosen.dataset.dial || '');
+      find('#mine-currency').value = typed ? '' : (chosen.dataset.currency || '');
+    };
+
+    const error = find('.form-error');
+    const close = () => dialogBox.remove();
+    find('.dialog-cancel').onclick = close;
+    dialogBox.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+    find('form').addEventListener('submit', async event => {
+      event.preventDefault();
+      error.hidden = true;
+      const name = find('#mine-name').value.trim();
+      const where = country.value === 'other' ? find('#mine-other').value.trim().toLowerCase() : country.value;
+      const dial = find('#mine-dial').value.replace(/[^0-9]/g, '');
+      const currency = find('#mine-currency').value.trim().toUpperCase();
+      if (!name || !where || !dial || currency.length !== 3) {
+        error.textContent = 'Enter your business name, choose your country, and check the calling code and currency.';
+        error.hidden = false;
+        return;
+      }
+      const button = find('button[type=submit]');
+      button.disabled = true;
+      button.textContent = 'Opening…';
+      try {
+        const made = await post('/v1/portal/my-merchant', {name, country: where, dial_code: dial, currency});
+        location.assign(made.next || '/dashboard');
+      } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+        button.disabled = false;
+        button.textContent = 'Open my dashboard';
+      }
+    });
+    find('#mine-name').focus();
   }
 
   /** Switches the workspace to one merchant's view, or back to the whole gateway. */
@@ -644,7 +726,7 @@
     const hasWebhook = !!(data.merchant && data.merchant.webhook_url);
     el('health-webhook').classList.toggle('warn', !owner && !hasWebhook);
     el('health-device').classList.toggle('warn', data.metrics.devices === 0);
-    el('health-key').classList.toggle('warn', !owner && !data.merchant);
+    el('health-key').classList.toggle('warn', !owner && !(data.metrics.keys > 0));
     el('integration-title').textContent = data.metrics.devices ? 'Your integration is connected.' : 'Finish listener setup.';
     el('health-webhook-label').textContent = owner ? 'Webhooks are set per merchant'
       : (hasWebhook ? 'Webhook address configured' : 'No webhook address yet');
@@ -652,14 +734,17 @@
       ? data.metrics.online + ' of ' + data.metrics.devices + ' listeners reporting'
       : 'No listener configured yet';
     el('health-key-label').textContent = owner ? 'Keys are issued per merchant'
-      : (data.merchant ? 'Live API access available' : 'No live merchant account yet');
+      : (data.metrics.keys > 0 ? data.metrics.keys + ' live API key' + (data.metrics.keys === 1 ? '' : 's') + ' active'
+        : data.merchant ? 'No API key yet' : 'No live merchant account yet');
 
     // A short checklist, only while something is actually outstanding.
     if (!owner) {
-      const steps = [
-        {done: !!data.merchant, label: 'Register your merchant account', href: '/signup'},
-        {done: data.metrics.devices > 0, label: 'Add a listener device', href: '/dashboard/devices'},
+      const steps = data.merchant ? [
+        {done: data.metrics.keys > 0, label: 'Create your API key', href: '/dashboard/developers'},
+        {done: data.metrics.devices > 0, label: 'Pair your listener phone', href: '/dashboard/devices'},
         {done: hasWebhook, label: 'Point your webhook at your billing system', href: '/dashboard/developers'},
+      ] : [
+        {done: false, label: 'Create your live merchant account', href: '/signup'},
       ];
       const outstanding = steps.filter(step => !step.done).length;
       if (outstanding) {
@@ -1186,46 +1271,24 @@
       ]);
     } else {
       el('account-no-merchant').hidden = false;
+      // The default wording is for an owner on the whole-gateway view.
+      if (data.user.role !== 'owner') {
+        el('no-merchant-title').textContent = 'No live merchant yet';
+        el('no-merchant-text').textContent = 'This sign-in can use the sandbox. Create a live account to receive payments.';
+      }
     }
 
-    // An owner can run a merchant account of their own on this same sign-in.
+    // An owner's own merchant account: open it, or create it, from right here.
     const mine = el('my-merchant');
     if (mine && data.user.role === 'owner') {
       mine.hidden = false;
+      const open = el('my-merchant-open');
       if (data.own_merchant) {
-        el('my-merchant-form').hidden = true;
-        el('my-merchant-ready').hidden = false;
-        el('my-merchant-name').textContent = data.own_merchant.name;
-        el('my-merchant-open').onclick = () => viewAs(data.own_merchant.id).catch(e => problem(e.message));
+        el('my-merchant-text').textContent = 'This sign-in also runs ' + data.own_merchant.name + '. Its keys, listener phones, webhook and payments are yours.';
+        open.textContent = 'Open my merchant dashboard';
+        open.onclick = () => viewAs(data.own_merchant.id).catch(e => problem(e.message));
       } else {
-        el('my-merchant-form').addEventListener('submit', async event => {
-          event.preventDefault();
-          show('my-merchant-error', '');
-          const password = await confirmPassword('Create your merchant account',
-            'It is created on this sign-in, and you are taken into it. You add your webhook afterwards, under API keys and webhooks.',
-            'Create my account');
-          if (!password) return;
-          const button = el('my-merchant-form').querySelector('button[type=submit]');
-          button.disabled = true;
-          try {
-            const made = await post('/v1/portal/my-merchant', {
-              name: el('mine-name').value.trim(),
-              country: el('mine-country').value.trim().toLowerCase(),
-              dial_code: el('mine-dial').value.trim(),
-              currency: el('mine-currency').value.trim().toUpperCase(),
-              password,
-            });
-            el('my-merchant-form').hidden = true;
-            el('mine-id').textContent = made.merchant_id;
-            el('mine-key').textContent = made.api_key;
-            el('mine-secret').textContent = made.webhook_secret;
-            el('my-merchant-reveal').hidden = false;
-            el('my-merchant-reveal').scrollIntoView({behavior: 'smooth', block: 'center'});
-          } catch (e) {
-            show('my-merchant-error', e.message);
-            button.disabled = false;
-          }
-        });
+        open.onclick = () => openMyMerchant();
       }
     }
 

@@ -65,7 +65,12 @@ class Gateway
         return $m;
     }
 
-    public static function createMerchant($name, $country, $dialCode, $currency, $webhookUrl)
+    /**
+     * $issueKey is false when the merchant is created from the workspace: they make
+     * their first key there, where it is shown to them, rather than having one
+     * issued here that nobody ever sees.
+     */
+    public static function createMerchant($name, $country, $dialCode, $currency, $webhookUrl, $issueKey = true)
     {
         $secret = 'whsec_' . bin2hex(random_bytes(24));
         Db::run(
@@ -74,7 +79,7 @@ class Gateway
             [self::newId('mer'), substr($name, 0, 120), strtolower(substr($country, 0, 40)), preg_replace('/\D+/', '', $dialCode), strtoupper(substr($currency, 0, 5)), (string) $webhookUrl === '' ? null : $webhookUrl, $secret, self::now()]
         );
         $id = Db::lastId();
-        return ['merchant' => Db::row("SELECT * FROM merchants WHERE id = ?", [$id]), 'api_key' => self::issueApiKey($id), 'webhook_secret' => $secret];
+        return ['merchant' => Db::row("SELECT * FROM merchants WHERE id = ?", [$id]), 'api_key' => $issueKey ? self::issueApiKey($id) : null, 'webhook_secret' => $secret];
     }
 
     // ---------------------------------------------------------------

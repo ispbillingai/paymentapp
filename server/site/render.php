@@ -67,7 +67,10 @@ function portalNav(string $current): string
             // An entry for one role only stays hidden until the workspace confirms the role.
             $attributes = $role !== '' ? ' data-role="' . $role . '" hidden' : '';
             $attributes .= $href === $current ? ' class="active" aria-current="page"' : '';
-            $links .= '<a' . $attributes . ' href="' . $href . '">' . $icon($icons[$glyph]) . '<span>' . $label . '</span></a>';
+            $outside = strpos($href, '/dashboard') !== 0;
+            if ($outside) $attributes .= ' target="_blank" rel="noopener"';
+            $links .= '<a' . $attributes . ' href="' . $href . '">' . $icon($icons[$glyph]) . '<span>' . $label . '</span>'
+                . ($outside ? '<span class="nav-out" aria-label="opens in a new tab">↗</span>' : '') . '</a>';
         }
         $html .= '<nav>' . ($heading !== '' ? '<p class="nav-heading">' . $heading . '</p>' : '') . $links . '</nav>';
     }
@@ -97,6 +100,7 @@ function renderPublicSite(string $path, string $method): void
         '/assets/signup.js' => ['signup.js', 'text/javascript; charset=utf-8'],
         '/assets/portal.js' => ['portal.js', 'text/javascript; charset=utf-8'],
         '/assets/workspace.js' => ['workspace.js', 'text/javascript; charset=utf-8'],
+        '/assets/countries.js' => ['countries.js', 'text/javascript; charset=utf-8'],
         '/assets/logo-mark.svg' => ['logo-mark.svg', 'image/svg+xml'],
         '/assets/logo.svg' => ['logo.svg', 'image/svg+xml'],
         '/favicon.svg' => ['favicon.svg', 'image/svg+xml'],
@@ -206,6 +210,7 @@ function renderPublicSite(string $path, string $method): void
     if ($found) $html .= '<link rel="canonical" href="https://ispbillingpay.com' . $escape($path) . '"><meta property="og:type" content="website"><meta property="og:title" content="' . $escape($title) . ' | ISP Billing Pay"><meta property="og:description" content="' . $escape($description) . '"><meta property="og:url" content="https://ispbillingpay.com' . $escape($path) . '">';
     if ($name === 'home') $html .= '<script src="/assets/localization.js?v=' . filemtime($site . '/localization.js') . '" defer></script>';
     // One script serves every workspace page and picks its work from data-page.
+    if ($isPortal) $html .= '<script src="/assets/countries.js?v=' . filemtime($site . '/countries.js') . '" defer></script>';
     if ($isPortal) $html .= '<script src="/assets/workspace.js?v=' . filemtime($site . '/workspace.js') . '" defer></script>';
     $html .= '</head><body id="top" data-page="' . $name . '">';
     $standalone = $isPortal || $name === 'login';

@@ -2,28 +2,9 @@
 <div id="portal-loading" class="portal-loading">Loading your account…</div><div id="portal-content" hidden>
 
 <section class="portal-grid account-grid"><article class="portal-panel"><div class="panel-heading"><div><p class="micro-label">SIGN IN</p><h2>Your details</h2></div></div><dl class="detail-list" id="account-details"></dl></article>
-<article class="portal-panel"><div class="panel-heading"><div><p class="micro-label">MERCHANT</p><h2>Your business</h2></div></div><dl class="detail-list" id="merchant-details"></dl><div id="account-no-merchant" class="portal-empty" hidden><strong>No live merchant yet</strong><p>This account can explore the sandbox. Complete live registration to receive payments.</p></div></article></section>
+<article class="portal-panel"><div class="panel-heading"><div><p class="micro-label">MERCHANT</p><h2>Your business</h2></div></div><dl class="detail-list" id="merchant-details"></dl><div id="account-no-merchant" class="portal-empty" hidden><strong id="no-merchant-title">No merchant on this view</strong><p id="no-merchant-text">You are looking at the whole gateway. Open your own merchant dashboard below, or choose a merchant from the top of the sidebar.</p></div></article></section>
 
-<section class="portal-panel operational-panel" id="my-merchant" hidden><div class="panel-heading"><div><p class="micro-label">MY MERCHANT ACCOUNT</p><h2>Use this sign-in as a merchant too</h2><p>Your own keys, listener phones, webhook and payments, on the same email and password. Switch between it and the owner view from the top of the sidebar.</p></div></div>
-<form id="my-merchant-form" class="portal-form" novalidate>
-  <div class="field-row">
-    <div class="field"><label for="mine-name">Business name</label><input id="mine-name" type="text" required maxlength="120" autocomplete="organization"></div>
-    <div class="field"><label for="mine-country">Country</label><input id="mine-country" type="text" required maxlength="40" placeholder="ghana" autocomplete="off"><small>Lower case, no spaces, as used in your billing platform.</small></div>
-  </div>
-  <div class="field-row">
-    <div class="field"><label for="mine-dial">Dialling code</label><input id="mine-dial" type="text" required inputmode="numeric" placeholder="233" autocomplete="off"><small>Digits only, without the plus.</small></div>
-    <div class="field"><label for="mine-currency">Currency</label><input id="mine-currency" type="text" required maxlength="3" placeholder="GHS" autocomplete="off"><small>Three-letter code.</small></div>
-  </div>
-  <div class="form-actions"><button class="button button-dark button-small" type="submit">Create my merchant account</button></div>
-  <p class="form-note">No webhook is needed yet. You add it afterwards under API keys and webhooks.</p>
-</form>
-<div id="my-merchant-ready" hidden><p class="form-note">This sign-in already runs <strong id="my-merchant-name"></strong>.</p><div class="form-actions"><button id="my-merchant-open" class="button button-dark button-small" type="button">Open my merchant account</button></div></div>
-<div class="credential-reveal" id="my-merchant-reveal" hidden><p class="micro-label">YOUR CREDENTIALS, SHOWN ONCE</p>
-<dl class="detail-list"><dt>Merchant ID</dt><dd><code id="mine-id"></code></dd><dt>API key</dt><dd><code id="mine-key"></code></dd><dt>Signing secret</dt><dd><code id="mine-secret"></code></dd></dl>
-<div class="button-row"><button class="copy-button" type="button" data-copy="mine-key">Copy API key</button><button class="copy-button" type="button" data-copy="mine-secret">Copy secret</button><a class="button button-dark button-small" href="/dashboard/developers">Set up my webhook →</a></div>
-<p>Store these in your billing system now. They cannot be shown again, though you can always create a new key or rotate the secret.</p></div>
-<p id="my-merchant-error" class="form-error" role="alert" hidden></p>
-</section>
+<section class="portal-panel operational-panel" id="my-merchant" hidden><div class="panel-heading"><div><p class="micro-label">MY MERCHANT ACCOUNT</p><h2>Your own merchant dashboard</h2><p id="my-merchant-text">Use this same email and password as a merchant too: your own keys, listener phones, webhook and payments. It takes a business name and a country.</p></div><button id="my-merchant-open" class="button button-dark button-small" type="button">Open my merchant dashboard</button></div></section>
 
 <section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Change your password</h2><p>Signing in elsewhere ends when you change it, on every other device.</p></div></div>
 <form id="password-form" class="portal-form narrow" novalidate>
