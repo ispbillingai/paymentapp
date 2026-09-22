@@ -1,0 +1,50 @@
+<section class="portal-main"><header class="portal-top"><div><p class="micro-label">MERCHANT WORKSPACE</p><h1>Get the app</h1></div><span id="portal-user"></span></header>
+
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>ISP Pay Bridge</h2><p>The Android app that watches one phone for payment messages and forwards them here. It is the only part of this that runs outside the gateway.</p></div></div>
+<div class="app-download">
+  <div class="button-row"><a class="button button-dark" href="/download">Download the app</a><a class="text-link" href="/app">What it does and what it cannot see ↗</a></div>
+  <p id="app-release" class="app-release">Checking the current version…</p>
+  <p>Open this page on the phone itself, or send the link to it. Android will warn you that the file did not come from the Play Store, which is expected: choose to install anyway.</p>
+</div>
+</section>
+
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Setting it up</h2><p>Once per phone, about five minutes. Do these in order, because the key in step 2 is shown only once.</p></div></div>
+<ol class="app-steps">
+  <li>
+    <strong>Choose the phone.</strong>
+    Any Android phone that can stay switched on, charged and online, with the SIM that receives your money inside it. It can be an old handset. It does not need to be new or fast.
+  </li>
+  <li>
+    <strong>Add it under Listener devices, and copy the key.</strong>
+    Open <a href="/dashboard/devices">Listener devices</a>, choose the network whose messages this phone will forward, name the phone so you recognise it later, and press Create listener. A device key appears once and is never shown again. Copy it now. If you lose it, use New key on that phone's row.
+  </li>
+  <li>
+    <strong>Install the app on that phone and paste the key.</strong>
+    Download it from the button above, open it, paste the key into Device connection and press Save and test. It should tell you it is connected.
+  </li>
+  <li>
+    <strong>Give it the two permissions it asks for.</strong>
+    Allow it to read incoming messages, and allow it to keep running in the background. Without the second one Android will stop it after a while and payments will arrive late or not at all.
+  </li>
+  <li>
+    <strong>Check the sender names.</strong>
+    The networks we know are already ticked. If your payment messages come from a sender we do not list, type it exactly as your phone shows it and press Add name. It takes effect at once. A sender can be a plain number, and it matches however that number is written.
+  </li>
+  <li>
+    <strong>Send yourself a small amount.</strong>
+    The message should appear under <a href="/dashboard/messages">Messages</a> within a few seconds, with what was read out of it beside the original text. That is the whole chain proved.
+  </li>
+</ol>
+</section>
+
+<section class="portal-panel operational-panel"><div class="panel-heading"><div><h2>Keeping it running</h2><p>The phone is the one part that can quietly stop. These are the things worth knowing.</p></div></div>
+<ul class="app-notes">
+  <li><strong>It reports every five minutes.</strong> <a href="/dashboard/devices">Listener devices</a> shows when each phone last reported, and Reporting history lists any silence longer than that, so "it was on the whole time" has an answer either way.</li>
+  <li><strong>Nothing is lost while it is offline.</strong> Messages are kept on the phone and sent when it is back. A flat battery delays payments; it does not lose them.</li>
+  <li><strong>It updates itself.</strong> When you open it, it offers any newer version. Nothing is reinstalled by hand.</li>
+  <li><strong>Only listed senders leave the phone.</strong> Everything else on it is ignored and never sent anywhere. That is the promise the app makes to whoever is holding it.</li>
+  <li><strong>If a phone is lost or sold,</strong> use Revoke on its row so its key stops working, then Remove to take it off the list.</li>
+</ul>
+</section>
+
+<p id="operations-error" class="form-error" role="alert" hidden></p></section>

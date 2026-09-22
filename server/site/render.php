@@ -20,6 +20,7 @@ function portalNav(string $current): string
         'home' => '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
         'payments' => '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
         'devices' => '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+        'getapp' => '<path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/>',
         'code' => '<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>',
         'merchants' => '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
         'account' => '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
@@ -37,6 +38,7 @@ function portalNav(string $current): string
             ['/dashboard/payments', 'payments', 'Payments'],
             ['/dashboard/messages', 'inbox', 'Messages'],
             ['/dashboard/devices', 'devices', 'Listener devices'],
+            ['/dashboard/app', 'getapp', 'Get the app'],
         ]],
         ['Build', [
             ['/dashboard/developers', 'code', 'API keys and webhooks'],
@@ -100,7 +102,6 @@ function renderPublicSite(string $path, string $method): void
         '/assets/localization.js' => ['localization.js', 'text/javascript; charset=utf-8'],
         '/assets/sandbox.js' => ['sandbox.js', 'text/javascript; charset=utf-8'],
         '/assets/signup.js' => ['signup.js', 'text/javascript; charset=utf-8'],
-        '/assets/resend.js' => ['resend.js', 'text/javascript; charset=utf-8'],
         '/assets/verify-email.js' => ['verify-email.js', 'text/javascript; charset=utf-8'],
         '/assets/portal.js' => ['portal.js', 'text/javascript; charset=utf-8'],
         '/assets/workspace.js' => ['workspace.js', 'text/javascript; charset=utf-8'],
@@ -175,6 +176,7 @@ function renderPublicSite(string $path, string $method): void
         '/dashboard/payments' => ['dashboard-payments', 'Payments', 'Search, filter and export every payment recorded against your merchant account.'],
         '/dashboard/messages' => ['dashboard-messages', 'Messages', 'Every message your listener phones reported, as it arrived, with what was read out of it.'],
         '/dashboard/devices' => ['dashboard-devices', 'Listener devices', 'Add a listener phone, rotate its key and watch whether it is reporting.'],
+        '/dashboard/app' => ['dashboard-app', 'Get the app', 'Download the Android listener app and set up the phone that forwards your payment messages.'],
         '/dashboard/developers' => ['dashboard-developers', 'Developers', 'Create and revoke live API keys, set your webhook address and review deliveries.'],
         '/dashboard/account' => ['dashboard-account', 'Account', 'Your sign-in details, merchant profile and receiving account.'],
         '/dashboard/merchants' => ['dashboard-merchants', 'Merchants', 'Add a merchant account and review the businesses connected to the gateway.'],
@@ -231,7 +233,7 @@ function renderPublicSite(string $path, string $method): void
     if (!$standalone) $html .= file_get_contents($site . '/_footer.html');
     // Page fragments include their own scripts. Version those URLs too, so a
     // signup or verification change is never paired with an hour-old script.
-    foreach (['signup.js', 'verify-email.js', 'resend.js', 'portal.js', 'sandbox.js'] as $script) {
+    foreach (['signup.js', 'verify-email.js', 'portal.js', 'sandbox.js'] as $script) {
         $html = str_replace('src="/assets/' . $script . '"', 'src="/assets/' . $script . '?v=' . filemtime($site . '/' . $script) . '"', $html);
     }
     $html .= '</body></html>';

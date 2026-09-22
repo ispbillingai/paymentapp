@@ -1165,6 +1165,29 @@
     load();
   };
 
+  // ---------------------------------------------------------------- get the app
+  pages['dashboard-app'] = async () => {
+    await identify();
+    // The version comes from the same manifest the app itself checks, so this
+    // line and the phone can never disagree about what the current build is.
+    const line = el('app-release');
+    if (!line) return;
+    try {
+      const release = await (await fetch('/app/version.json', {cache: 'no-store'})).json();
+      const size = release.size ? ' · ' + Math.round(release.size / 1024) + ' KB' : '';
+      line.textContent = 'Current version ' + release.version_name + size;
+      if (release.notes) {
+        const notes = document.createElement('span');
+        notes.className = 'app-release-notes';
+        notes.textContent = ' — ' + release.notes;
+        line.append(notes);
+      }
+    } catch (e) {
+      // The download works whether or not this line does; it is not worth an error.
+      line.textContent = 'Download the current version from the button above.';
+    }
+  };
+
   // ---------------------------------------------------------------- devices
   pages['dashboard-devices'] = async () => {
     const account = await identify();

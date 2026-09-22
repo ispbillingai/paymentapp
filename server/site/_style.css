@@ -264,3 +264,18 @@ button.scope-add.first{border-top:0}
 .message-actions{margin-top:12px}
 .uptime-line{font-size:13px;margin:4px 0}
 .uptime-line small{color:var(--muted);font-size:12px}
+
+/* Get the app: a download, then steps to follow on the phone in your hand. */
+.app-download{padding-top:4px}
+.app-download p{font-size:13px;color:var(--muted);margin:10px 0 0;max-width:62ch}
+/* The panel paints every link small and green, which swallowed the download
+   button. It is a button here, so it keeps a button's colour and size. */
+.app-download .button-dark{color:var(--white);font-size:13px}
+.app-download .button-dark:hover{color:var(--white)}
+.app-download .text-link{font-size:13px}
+.app-release{font-weight:600;color:var(--ink)}
+.app-steps{margin:4px 0 0;padding-left:20px}
+.app-steps li{font-size:13px;line-height:1.55;margin-bottom:14px;max-width:70ch}
+.app-steps strong{display:block;color:var(--ink);font-size:13px;margin-bottom:2px}
+.app-notes{margin:4px 0 0;padding-left:20px}
+.app-notes li{font-size:13px;line-height:1.55;margin-bottom:10px;max-width:70ch}
