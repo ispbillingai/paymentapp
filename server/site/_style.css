@@ -266,7 +266,14 @@ button.scope-add.first{border-top:0}
 .uptime-line small{color:var(--muted);font-size:12px}
 
 /* Get the app: a download, then steps to follow on the phone in your hand. */
-.app-page{max-width:900px}
+/* A wide screen is space to use, not to fence off. Capping the page left the
+   content hugging the left with an empty half beside it, which reads as a
+   broken page. Past 1150px the two reading panels sit side by side instead:
+   the width is filled and no line runs past a comfortable measure. */
+@media (min-width:1150px){
+  .app-page .app-columns{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  .app-page .app-columns>.portal-panel{margin-top:0}
+}
 /* The shared 62ch cap keeps prose readable on pages whose cards are wide.
    This page is already capped, so inside it the cap only leaves a ragged
    right edge. Overridden here alone, never for the other pages. */
