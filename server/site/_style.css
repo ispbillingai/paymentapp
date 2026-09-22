@@ -266,8 +266,13 @@ button.scope-add.first{border-top:0}
 .uptime-line small{color:var(--muted);font-size:12px}
 
 /* Get the app: a download, then steps to follow on the phone in your hand. */
+.app-page{max-width:900px}
+/* The shared 62ch cap keeps prose readable on pages whose cards are wide.
+   This page is already capped, so inside it the cap only leaves a ragged
+   right edge. Overridden here alone, never for the other pages. */
+.app-page .panel-heading p:not(.micro-label){max-width:none}
 .app-download{padding-top:4px}
-.app-download p{font-size:13px;color:var(--muted);margin:10px 0 0;max-width:62ch}
+.app-download p{font-size:13px;color:var(--muted);margin:10px 0 0}
 /* The panel paints every link small and green, which swallowed the download
    button. It is a button here, so it keeps a button's colour and size. */
 .app-download .button-dark{color:var(--white);font-size:13px}
@@ -275,7 +280,7 @@ button.scope-add.first{border-top:0}
 .app-download .text-link{font-size:13px}
 .app-release{font-weight:600;color:var(--ink)}
 .app-steps{margin:4px 0 0;padding-left:20px}
-.app-steps li{font-size:13px;line-height:1.55;margin-bottom:14px;max-width:70ch}
+.app-steps li{font-size:13px;line-height:1.55;margin-bottom:14px}
 .app-steps strong{display:block;color:var(--ink);font-size:13px;margin-bottom:2px}
 .app-notes{margin:4px 0 0;padding-left:20px}
-.app-notes li{font-size:13px;line-height:1.55;margin-bottom:10px;max-width:70ch}
+.app-notes li{font-size:13px;line-height:1.55;margin-bottom:10px}
