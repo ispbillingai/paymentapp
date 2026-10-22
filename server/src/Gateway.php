@@ -628,6 +628,8 @@ class Gateway
                 $existing = Db::row("SELECT id FROM payments WHERE merchant_id = ? AND provider = ? AND receiving_key = ? AND trx_id = ?", [$mid, $provider, $rkey, $trx]);
                 if ($existing) {
                     if ($p['kind'] === 'credit') self::completeReversedReceipt((int) $existing['id'], $p, $device, $sender, $body, $sentAt);
+                    // Saved unread by an older parser and re-sent now it can be read.
+                    if ($p['kind'] === 'credit') self::reread((int) $existing['id']);
                     self::matchPayment((int) $existing['id']);
                 }
                 return 'duplicate'; // the phone re-sent something already delivered
@@ -645,6 +647,44 @@ class Gateway
             ]);
         }
         return 'recorded';
+    }
+
+    /**
+     * Read an unread payment again with the current parser. A country format
+     * the parser learned after the money arrived then connects the customer
+     * instead of leaving the payment waiting for a person. Returns 'credit'
+     * when it now reads as money in, 'matched' when it also found its intent,
+     * or '' when nothing changed.
+     */
+    public static function reread($paymentId)
+    {
+        $pay = Db::row(
+            "SELECT p.*, m.dial_code, m.currency AS merchant_currency FROM payments p JOIN merchants m ON m.id = p.merchant_id WHERE p.id = ?",
+            [(int) $paymentId]
+        );
+        if (!$pay || $pay['kind'] !== 'unread' || $pay['status'] !== 'unmatched' || (int) $pay['reversed'] === 1) {
+            return '';
+        }
+        $p = Parser::parseMessage($pay['provider'], (string) $pay['raw_message'], (string) $pay['merchant_currency']);
+        if ($p['kind'] !== 'credit') {
+            return '';
+        }
+        $trx = $pay['trx_id'];
+        if (strpos($trx, 'raw:') === 0 && $p['trx_id'] !== '') {
+            $taken = Db::row("SELECT id FROM payments WHERE merchant_id = ? AND provider = ? AND receiving_key = ? AND trx_id = ?",
+                [(int) $pay['merchant_id'], $pay['provider'], $pay['receiving_key'], $p['trx_id']]);
+            if ($taken) {
+                return ''; // the same receipt already exists under its real ID
+            }
+            $trx = $p['trx_id'];
+        }
+        Db::run(
+            "UPDATE payments SET kind = 'credit', trx_id = ?, amount = ?, currency = ?, payer_msisdn = ?, payer_key = ?, payer_name = ?, parser = ?, hold_reason = ''
+              WHERE id = ? AND kind = 'unread' AND status = 'unmatched'",
+            [$trx, $p['amount'], $p['currency'], $p['payer_msisdn'], Parser::msisdnKey($p['payer_msisdn'], Parser::msisdnDigitsFor($pay['dial_code'])),
+                $p['payer_name'], $p['parser'], (int) $pay['id']]
+        );
+        return self::matchPayment((int) $pay['id']) ? 'matched' : 'credit';
     }
 
     /** Fill an earlier reversal notice with its eventual credit, without matching it. */
