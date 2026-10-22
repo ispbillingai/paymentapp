@@ -77,7 +77,7 @@
               <LinearLayout android:id="@+id/sender_boxes" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="6dp" />
               <TextView style="@style/Label" android:text="@string/label_sender_extra" android:layout_marginTop="12dp" />
               <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:baselineAligned="false" android:layout_marginTop="6dp">
-                <EditText android:id="@+id/senders" style="@style/Input" android:layout_width="0dp" android:layout_weight="1" android:inputType="textNoSuggestions|textCapCharacters" android:singleLine="true" android:imeOptions="actionDone" android:hint="@string/hint_sender_extra" />
+                <EditText android:id="@+id/senders" style="@style/Input" android:layout_width="0dp" android:layout_weight="1" android:inputType="textNoSuggestions" android:singleLine="true" android:imeOptions="actionDone" android:hint="@string/hint_sender_extra" />
                 <Button android:id="@+id/add_sender" style="@style/SecondaryButton" android:layout_width="wrap_content" android:layout_marginStart="8dp" android:layout_marginTop="0dp" android:text="@string/add_sender" />
               </LinearLayout>
               <TextView style="@style/Body" android:text="@string/help_senders" android:textSize="12sp" android:layout_marginTop="8dp" />

@@ -135,7 +135,11 @@ public class MainActivity extends Activity {
         senderBoxes = findViewById(R.id.sender_boxes);
         drawSenders();
         findViewById(R.id.add_sender).setOnClickListener(v -> addTypedSender());
-        senders.setOnEditorActionListener((view, action, event) -> { addTypedSender(); return true; });
+        senders.setOnEditorActionListener((view, action, event) -> {
+            // Enter on some keyboards arrives as a key down and a key up; add once, not twice.
+            if (event == null || event.getAction() == android.view.KeyEvent.ACTION_DOWN) addTypedSender();
+            return true;
+        });
 
         // The zone every time on this screen is shown in. The phone's own setting is
         // first, since that is right for most, and the rest are offered by name.
@@ -264,7 +268,8 @@ public class MainActivity extends Activity {
             line.setOrientation(LinearLayout.HORIZONTAL);
             line.setGravity(android.view.Gravity.CENTER_VERTICAL);
             final CheckBox box = new CheckBox(this);
-            box.setText(row.label);
+            // Show the sender names themselves, since that is what the phone displays.
+            box.setText(row.builtIn ? row.label + "\n" + row.names : row.label);
             box.setTextSize(14);
             box.setMinHeight(dp(46));
             box.setTextColor(getResources().getColor(R.color.ink));

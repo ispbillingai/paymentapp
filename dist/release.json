@@ -1,5 +1,5 @@
 {
-    "version_code": 19,
-    "version_name": "1.5.4",
-    "notes": "A sender you add, tick or remove now takes effect at once. Before, it only did after Save and test, so a name could look added and forward nothing."
+    "version_code": 20,
+    "version_name": "1.5.5",
+    "notes": "Cameroon MTN MoMo payments from the MobileMoney sender are now read. Each network in the sender list shows the exact sender names it covers, the add box no longer forces capitals, and pressing Enter adds a name once."
 }

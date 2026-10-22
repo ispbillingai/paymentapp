@@ -36,6 +36,9 @@ class Parser
             'mpesa_ke'  => ['MPESA', 'M-PESA'],
             'airtel_ke' => ['AirtelMoney', 'Airtel Money', 'AIRTELMONEY'],
         ],
+        '237' => [
+            'mtn_cm' => ['MobileMoney', 'MTN MoMo', 'MTNMoMo', 'MoMo'],
+        ],
     ];
 
     private static $providerLabels = [
@@ -46,6 +49,7 @@ class Parser
         'at_gh'      => 'AT Money',
         'mpesa_ke'   => 'M-Pesa',
         'airtel_ke'  => 'Airtel Money',
+        'mtn_cm'     => 'MTN MoMo',
         'other'      => 'Mobile money',
     ];
 
@@ -292,6 +296,10 @@ class Parser
         if (preg_match('/received.{0,60}?\b(' . $curWords . ')\.?\s*([\d][\d,]*(?:\.\d{1,2})?)/i', $text, $m)) {
             $out['currency'] = $currencies[strtoupper($m[1])];
             $out['amount'] = (float) str_replace(',', '', $m[2]);
+        } elseif (preg_match('/received\s+([\d][\d,]*(?:\.\d{1,2})?)\s*(' . $curWords . ')\b/i', $text, $m)) {
+            // Cameroon writes the figure first: "You have received 100 XAF from".
+            $out['currency'] = $currencies[strtoupper($m[2])];
+            $out['amount'] = (float) str_replace(',', '', $m[1]);
         } elseif (preg_match('/\b(' . $curWords . ')\.?\s*([\d][\d,]*(?:\.\d{1,2})?)\s+received\s+from\b/i', $text, $m)) {
             // Some receipts, till payments among them, state the amount first:
             // "Ksh250.00 received from ...". It must be followed by "received
@@ -303,7 +311,7 @@ class Parser
         // The "from" part runs until the next sentence or the date. It holds
         // the payer's number and name in either order. Some networks leave
         // the number out altogether.
-        if (preg_match('/\bfrom\s+(.{3,90}?)(?:\s+on\s+\d|\.\s|\.$|\s+Bal\b|\s+Your\b|\s+Reason\b|\s+Current\b|\s+Available\b|\s+Reference\b|\s+Transaction\b|\s+TID\b|$)/i', $text, $m)) {
+        if (preg_match('/\bfrom\s+(.{3,90}?)(?:\s+on\s+\d|\s+on\s+your\b|\s+on\s+your|\.\s|\.$|\s+Bal\b|\s+Your\b|\s+Reason\b|\s+Current\b|\s+Available\b|\s+Reference\b|\s+Transaction\b|\s+TID\b|$)/i', $text, $m)) {
             $from = $m[1];
             if (preg_match('/\+?\d[\d\s]{7,15}\d/', $from, $n)) {
                 $out['payer_msisdn'] = preg_replace('/\D+/', '', $n[0]);
