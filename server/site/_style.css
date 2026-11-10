@@ -291,3 +291,4 @@ button.scope-add.first{border-top:0}
 .app-steps strong{display:block;color:var(--ink);font-size:13px;margin-bottom:2px}
 .app-notes{margin:4px 0 0;padding-left:20px}
 .app-notes li{font-size:13px;line-height:1.55;margin-bottom:10px}
+.site-notice{background:var(--lime);color:var(--ink);font-size:15px;line-height:1.45;padding:10px 0;border-bottom:1px solid var(--line)}.site-notice a{color:var(--dark);font-weight:700;text-decoration:underline}
